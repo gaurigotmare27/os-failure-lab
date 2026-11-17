@@ -33,7 +33,7 @@ export interface ThreadOperation {
   id: string;
   /** The type of operation being performed */
   type: OperationType;
-  /** Target resource, lock, or variable identifier (if applicable) */
+  /** Target resource, lock, variable, or semaphore identifier (if applicable) */
   resourceId?: string;
   /** Human-readable description of the operation */
   description: string;
@@ -99,6 +99,49 @@ export interface ResourceDefinition {
 }
 
 /**
+ * SharedVariableDefinition
+ * Definition and state of a shared memory variable accessible by concurrent threads.
+ */
+export interface SharedVariableDefinition {
+  /** Unique shared variable identifier */
+  id: string;
+  /** Human-readable variable name (e.g. "counter", "shared_balance") */
+  name: string;
+  /** Initial value before simulation execution starts */
+  initialValue: number | string | boolean;
+  /** Current value during simulation execution */
+  currentValue: number | string | boolean;
+}
+
+/**
+ * SemaphoreDefinition
+ * Definition and state of a counting or binary semaphore used for process synchronization.
+ */
+export interface SemaphoreDefinition {
+  /** Unique semaphore identifier */
+  id: string;
+  /** Human-readable semaphore name (e.g. "empty", "full", "mutex") */
+  name: string;
+  /** Initial permit counter */
+  initialValue: number;
+  /** Current permit counter */
+  currentValue: number;
+  /** Ordered FIFO queue of thread IDs waiting on this semaphore */
+  waitingQueue: string[];
+}
+
+/**
+ * Supported types for thread local register values.
+ */
+export type RegisterValue = number | string | boolean;
+
+/**
+ * Independent local CPU register values mapped by thread ID and register name.
+ * e.g., threadRegisters["thread-a"]["R1"] = 0
+ */
+export type ThreadRegisters = Record<string, Record<string, RegisterValue>>;
+
+/**
  * 7. SchedulingPolicy
  * Supported CPU scheduling algorithms for thread selection.
  */
@@ -121,6 +164,10 @@ export interface Scenario {
   locks: LockDefinition[];
   /** Shared multi-instance resources used within the scenario */
   resources: ResourceDefinition[];
+  /** Shared variables accessed by threads in this scenario */
+  sharedVariables?: SharedVariableDefinition[];
+  /** Semaphores configured for synchronization in this scenario */
+  semaphores?: SemaphoreDefinition[];
   /** CPU scheduling algorithm applied to the ready queue */
   schedulingPolicy: SchedulingPolicy;
   /** Optional time quantum for Round Robin scheduling (in logical clock ticks) */
@@ -135,6 +182,8 @@ export type TraceEventType =
   | "LOCK_ACQUIRED"
   | "LOCK_BLOCKED"
   | "LOCK_RELEASED"
+  | "SEMAPHORE_WAIT"
+  | "SEMAPHORE_SIGNAL"
   | "RESOURCE_ALLOCATED"
   | "RESOURCE_RELEASED"
   | "OPERATION_START"
@@ -158,7 +207,7 @@ export interface TraceEvent {
   eventType: TraceEventType;
   /** Human-readable description of what transpired */
   description: string;
-  /** Identifier of the affected resource or lock (if applicable) */
+  /** Identifier of the affected resource, lock, or variable (if applicable) */
   affectedResource?: string | null;
 }
 
@@ -184,6 +233,10 @@ export interface SimulationSnapshot {
   logicalTime: number;
   /** Current status of the simulation */
   status: SimulationStatus;
+  /** Configured CPU scheduling policy */
+  schedulingPolicy: SchedulingPolicy;
+  /** Configured time quantum for Round Robin scheduling (where applicable) */
+  timeQuantum?: number;
   /** Current states of all threads mapped by thread ID */
   threadStates: Record<string, ThreadState>;
   /** Complete current state of each thread */
@@ -194,6 +247,12 @@ export interface SimulationSnapshot {
   locks: LockDefinition[];
   /** Complete state of each resource */
   resources: ResourceDefinition[];
+  /** State of shared variables at this snapshot */
+  sharedVariables: SharedVariableDefinition[];
+  /** State of semaphores at this snapshot */
+  semaphores: SemaphoreDefinition[];
+  /** Independent local register values for each thread (threadId -> registerName -> value) */
+  threadRegisters: ThreadRegisters;
   /** Ordered list of thread IDs currently in the READY queue */
   readyQueue: string[];
   /** Currently executing thread ID, or null if CPU is idle */
