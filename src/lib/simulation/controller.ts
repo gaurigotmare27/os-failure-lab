@@ -18,7 +18,7 @@ import {
   preemptThread,
   executeNextOperation,
 } from "./engine";
-import { detectDeadlock } from "./diagnostics";
+import { analyzeSimulation } from "./diagnostics";
 
 export interface ControllerOptions {
   /** Maximum number of trace events before terminating with STEP_LIMIT_REACHED (defaults to 1000) */
@@ -87,104 +87,131 @@ export function stepSimulation(
 
   let currentSnapshot: SimulationSnapshot = snapshot;
 
+  // Reset quantum counter if CPU is idle before scheduling
+  if (currentSnapshot.activeThreadId === null && (currentSnapshot.activeThreadQuantumUsed ?? 0) !== 0) {
+    currentSnapshot = structuredClone(currentSnapshot);
+    currentSnapshot.activeThreadQuantumUsed = 0;
+  }
+
   // 3. If no thread is currently active on the CPU, select and dispatch the next eligible READY thread
   if (currentSnapshot.activeThreadId === null) {
     const nextThread = selectNextThread(currentSnapshot);
 
     // If no READY thread is available:
     if (!nextThread) {
-      // Check if the stalled execution is caused by a circular wait deadlock
-      const deadlockResult = detectDeadlock(currentSnapshot);
-      if (deadlockResult.isDeadlocked) {
-        const deadlockedSnapshot = structuredClone(currentSnapshot);
-        deadlockedSnapshot.status = "DEADLOCKED";
-        deadlockedSnapshot.activeThreadId = null;
+      // Evaluate simulation health via diagnostics
+      const diagnosticReport = analyzeSimulation(currentSnapshot);
+      if (diagnosticReport.isDeadlocked) {
+        currentSnapshot = structuredClone(currentSnapshot);
+        currentSnapshot.status = "DEADLOCKED";
+        currentSnapshot.activeThreadId = null;
+        currentSnapshot.activeThreadQuantumUsed = 0;
 
-        const cycleDescs = deadlockResult.cycles
-          .map((c) => c.threadIds.join(" -> "))
-          .join("; ");
+        // Record DEADLOCK_DETECTED only once
+        const alreadyLogged = currentSnapshot.eventTrace.some(
+          (e) => e.eventType === "DEADLOCK_DETECTED"
+        );
 
-        deadlockedSnapshot.eventTrace.push({
-          id: `evt-${deadlockedSnapshot.eventTrace.length + 1}`,
-          timestamp: deadlockedSnapshot.logicalTime,
-          threadId: deadlockResult.deadlockedThreadIds[0] ?? "system",
-          eventType: "DEADLOCK_DETECTED",
-          description: `Deadlock detected: Circular wait cycle [${cycleDescs}] on locks [${deadlockResult.deadlockedLockIds.join(", ")}]`,
-          affectedResource: deadlockResult.deadlockedLockIds[0] ?? null,
-        });
+        if (!alreadyLogged) {
+          currentSnapshot.eventTrace.push({
+            id: `evt-${currentSnapshot.eventTrace.length + 1}`,
+            timestamp: currentSnapshot.logicalTime,
+            threadId: diagnosticReport.involvedThreadIds[0] ?? "system",
+            eventType: "DEADLOCK_DETECTED",
+            description: `Deadlock detected: ${diagnosticReport.summary} ${diagnosticReport.explanation}`,
+            affectedResource: diagnosticReport.involvedLockIds[0] ?? null,
+          });
+        }
 
-        return deadlockedSnapshot;
+        return currentSnapshot;
       }
 
       // No READY threads, but not deadlocked (e.g. unresolved semaphore blocking or idle)
+      if ((currentSnapshot.activeThreadQuantumUsed ?? 0) !== 0) {
+        currentSnapshot = structuredClone(currentSnapshot);
+        currentSnapshot.activeThreadQuantumUsed = 0;
+      }
       return currentSnapshot;
     }
 
     currentSnapshot = dispatchThread(currentSnapshot, nextThread.id);
+    // Explicitly reset quantum to 0 for newly dispatched thread so it never inherits leftover quantum
+    currentSnapshot = structuredClone(currentSnapshot);
+    currentSnapshot.activeThreadQuantumUsed = 0;
   }
 
   // 4. If a thread is active, execute its next discrete operation
   if (currentSnapshot.activeThreadId !== null) {
     const threadIdToExecute = currentSnapshot.activeThreadId;
+    const timeBefore = currentSnapshot.logicalTime;
+
     currentSnapshot = executeNextOperation(currentSnapshot, threadIdToExecute);
 
-    // Check if the executed operation immediately resulted in a circular wait deadlock
-    if (
-      currentSnapshot.status !== "DEADLOCKED" &&
-      currentSnapshot.status !== "COMPLETED" &&
-      currentSnapshot.activeThreadId === null &&
-      currentSnapshot.readyQueue.length === 0 &&
-      currentSnapshot.threads.some((t) => t.state === "BLOCKED")
-    ) {
-      const deadlockResult = detectDeadlock(currentSnapshot);
-      if (deadlockResult.isDeadlocked) {
-        currentSnapshot = structuredClone(currentSnapshot);
-        currentSnapshot.status = "DEADLOCKED";
-        currentSnapshot.activeThreadId = null;
+    // Calculate quantum consumption using actual logical ticks consumed by execution
+    const timeAfter = currentSnapshot.logicalTime;
+    const ticksConsumed = Math.max(1, timeAfter - timeBefore);
 
-        const cycleDescs = deadlockResult.cycles
-          .map((c) => c.threadIds.join(" -> "))
-          .join("; ");
+    // Evaluate simulation health via diagnostics after operation execution
+    const postReport = analyzeSimulation(currentSnapshot);
+    if (postReport.isDeadlocked) {
+      currentSnapshot = structuredClone(currentSnapshot);
+      currentSnapshot.status = "DEADLOCKED";
+      currentSnapshot.activeThreadId = null;
+      currentSnapshot.activeThreadQuantumUsed = 0;
 
+      // Record DEADLOCK_DETECTED only once
+      const alreadyLogged = currentSnapshot.eventTrace.some(
+        (e) => e.eventType === "DEADLOCK_DETECTED"
+      );
+
+      if (!alreadyLogged) {
         currentSnapshot.eventTrace.push({
           id: `evt-${currentSnapshot.eventTrace.length + 1}`,
           timestamp: currentSnapshot.logicalTime,
-          threadId: deadlockResult.deadlockedThreadIds[0] ?? "system",
+          threadId: postReport.involvedThreadIds[0] ?? "system",
           eventType: "DEADLOCK_DETECTED",
-          description: `Deadlock detected: Circular wait cycle [${cycleDescs}] on locks [${deadlockResult.deadlockedLockIds.join(", ")}]`,
-          affectedResource: deadlockResult.deadlockedLockIds[0] ?? null,
+          description: `Deadlock detected: ${postReport.summary} ${postReport.explanation}`,
+          affectedResource: postReport.involvedLockIds[0] ?? null,
         });
-
-        return currentSnapshot;
       }
+
+      return currentSnapshot;
     }
 
-    // 5. Round Robin quantum handling
-    if (currentSnapshot.schedulingPolicy === "ROUND_ROBIN") {
-      // Only preempt if the thread is still active and RUNNING
-      // Do NOT preempt blocked or completed threads (their activeThreadId is already null)
-      if (currentSnapshot.activeThreadId === threadIdToExecute) {
-        const activeThread = currentSnapshot.threads.find(
-          (t) => t.id === threadIdToExecute
+    // Check thread state after execution
+    const executedThread = currentSnapshot.threads.find(
+      (t) => t.id === threadIdToExecute
+    );
+
+    // Reset quantum counter when a thread becomes BLOCKED, DONE, or if CPU becomes idle
+    if (
+      !executedThread ||
+      executedThread.state === "BLOCKED" ||
+      executedThread.state === "DONE" ||
+      currentSnapshot.activeThreadId === null
+    ) {
+      currentSnapshot = structuredClone(currentSnapshot);
+      currentSnapshot.activeThreadQuantumUsed = 0;
+    } else if (
+      currentSnapshot.schedulingPolicy === "ROUND_ROBIN" &&
+      currentSnapshot.activeThreadId === threadIdToExecute &&
+      executedThread.state === "RUNNING"
+    ) {
+      // 5. Round Robin quantum handling for actively RUNNING thread
+      const quantum = currentSnapshot.timeQuantum ?? 1;
+      const used = (currentSnapshot.activeThreadQuantumUsed ?? 0) + ticksConsumed;
+
+      if (used >= quantum) {
+        // Quantum expired: preempt running thread to tail of ready queue and reset quantum
+        currentSnapshot = preemptThread(
+          currentSnapshot,
+          threadIdToExecute
         );
-
-        if (activeThread && activeThread.state === "RUNNING") {
-          const quantum = currentSnapshot.timeQuantum ?? 1;
-          const used = (currentSnapshot.activeThreadQuantumUsed ?? 0) + 1;
-
-          if (used >= quantum) {
-            // Quantum expired: preempt running thread to tail of ready queue
-            currentSnapshot = preemptThread(
-              currentSnapshot,
-              threadIdToExecute
-            );
-            currentSnapshot.activeThreadQuantumUsed = 0;
-          } else {
-            // Still within quantum: update quantum counter
-            currentSnapshot = structuredClone(currentSnapshot);
-            currentSnapshot.activeThreadQuantumUsed = used;
-          }
-        }
+        currentSnapshot.activeThreadQuantumUsed = 0;
+      } else {
+        // Still within quantum: update quantum counter
+        currentSnapshot = structuredClone(currentSnapshot);
+        currentSnapshot.activeThreadQuantumUsed = used;
       }
     }
   }
@@ -199,6 +226,7 @@ export function stepSimulation(
       currentSnapshot = structuredClone(currentSnapshot);
       currentSnapshot.status = "COMPLETED";
       currentSnapshot.activeThreadId = null;
+      currentSnapshot.activeThreadQuantumUsed = 0;
     }
   }
 

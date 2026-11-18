@@ -422,6 +422,7 @@ export const producerConsumerScenario: Scenario = {
           resourceId: "var-buffer",
           description: "Consumer reads item from bounded buffer and empties slot",
           duration: 1,
+          payload: { targetRegister: "R1", variable: "buffer", consume: true },
         },
         {
           id: "op-cons-4",

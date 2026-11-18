@@ -116,11 +116,23 @@ function executeRead(
     const value = targetVar.currentValue;
     snapshot.threadRegisters[thread.id][targetReg] = value;
 
+    // Support consuming / clearing bounded buffer slot on read
+    const shouldEmptySlot =
+      op.payload?.consume === true ||
+      op.payload?.clearOnRead === true ||
+      op.description.toLowerCase().includes("empties slot");
+
+    if (shouldEmptySlot) {
+      targetVar.currentValue = 0;
+    }
+
     emitEvent(
       snapshot,
       thread.id,
       "MEMORY_READ",
-      `Thread '${thread.name}' read shared variable '${targetVar.name}' (value: ${String(value)}) into register ${targetReg}`,
+      `Thread '${thread.name}' read shared variable '${targetVar.name}' (value: ${String(value)}) into register ${targetReg}${
+        shouldEmptySlot ? " and emptied slot (buffer = 0)" : ""
+      }`,
       targetVar.id
     );
   } else {

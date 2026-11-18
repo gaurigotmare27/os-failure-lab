@@ -1,4 +1,8 @@
+"use client";
+
 import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LogoIcon,
   OverviewIcon,
@@ -21,51 +25,59 @@ const navItems: NavItem[] = [
   {
     id: "overview",
     label: "Overview",
-    href: "#",
+    href: "/",
     icon: "overview",
-    isActive: true,
   },
   {
     id: "experiments",
     label: "Experiments",
-    href: "#",
+    href: "/experiments",
     icon: "experiments",
   },
   {
     id: "simulation-lab",
     label: "Simulation Lab",
-    href: "#",
+    href: "/simulation",
     icon: "simulation-lab",
   },
   {
     id: "deadlock-analyzer",
     label: "Deadlock Analyzer",
-    href: "#",
+    href: "/deadlock-analyzer",
     icon: "deadlock-analyzer",
   },
   {
     id: "thread-monitor",
     label: "Thread Monitor",
-    href: "#",
+    href: "/thread-monitor",
     icon: "thread-monitor",
   },
   {
     id: "reports",
     label: "Reports",
-    href: "#",
+    href: "/reports",
     icon: "reports",
   },
   {
     id: "settings",
     label: "Settings",
-    href: "#",
+    href: "/settings",
     icon: "settings",
   },
 ];
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
-  const renderIcon = (iconName: string, isActive: boolean) => {
-    const iconColor = isActive
+  const pathname = usePathname();
+
+  const isItemActive = (href: string) => {
+    if (href === "/") {
+      return pathname === "/" || pathname === "";
+    }
+    return pathname.startsWith(href);
+  };
+
+  const renderIcon = (iconName: string, active: boolean) => {
+    const iconColor = active
       ? "text-blue-400"
       : "text-slate-400 group-hover:text-slate-200";
 
@@ -94,7 +106,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <div>
         {/* Brand Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-800 text-blue-400 border border-slate-700/80">
               <LogoIcon size={18} className="text-blue-400" />
             </div>
@@ -106,7 +118,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 Concurrency Lab
               </div>
             </div>
-          </div>
+          </Link>
           {onClose && (
             <button
               type="button"
@@ -126,21 +138,24 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               Lab Modules
             </div>
             <nav className="space-y-0.5" aria-label="Core Navigation">
-              {navItems.slice(0, 3).map((item) => (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  className={`group flex items-center gap-3 px-3 py-1.5 rounded text-xs transition-colors ${
-                    item.isActive
-                      ? "bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                  aria-current={item.isActive ? "page" : undefined}
-                >
-                  {renderIcon(item.icon, !!item.isActive)}
-                  <span>{item.label}</span>
-                </a>
-              ))}
+              {navItems.slice(0, 3).map((item) => {
+                const active = isItemActive(item.href);
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`group flex items-center gap-3 px-3 py-1.5 rounded text-xs transition-colors ${
+                      active
+                        ? "bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {renderIcon(item.icon, active)}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
 
@@ -149,21 +164,24 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               Analysis & Logs
             </div>
             <nav className="space-y-0.5" aria-label="Analysis Navigation">
-              {navItems.slice(3, 6).map((item) => (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  className={`group flex items-center gap-3 px-3 py-1.5 rounded text-xs transition-colors ${
-                    item.isActive
-                      ? "bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                  aria-current={item.isActive ? "page" : undefined}
-                >
-                  {renderIcon(item.icon, !!item.isActive)}
-                  <span>{item.label}</span>
-                </a>
-              ))}
+              {navItems.slice(3, 6).map((item) => {
+                const active = isItemActive(item.href);
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`group flex items-center gap-3 px-3 py-1.5 rounded text-xs transition-colors ${
+                      active
+                        ? "bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {renderIcon(item.icon, active)}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
 
@@ -172,21 +190,24 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               System
             </div>
             <nav className="space-y-0.5" aria-label="System Navigation">
-              {navItems.slice(6).map((item) => (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  className={`group flex items-center gap-3 px-3 py-1.5 rounded text-xs transition-colors ${
-                    item.isActive
-                      ? "bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                  aria-current={item.isActive ? "page" : undefined}
-                >
-                  {renderIcon(item.icon, !!item.isActive)}
-                  <span>{item.label}</span>
-                </a>
-              ))}
+              {navItems.slice(6).map((item) => {
+                const active = isItemActive(item.href);
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`group flex items-center gap-3 px-3 py-1.5 rounded text-xs transition-colors ${
+                      active
+                        ? "bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {renderIcon(item.icon, active)}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   PlayIcon,
@@ -10,7 +11,6 @@ import {
   ClockIcon,
   LayersIcon,
   ThreadMonitorIcon,
-  LockIcon,
   SyncIcon,
   ShieldAlertIcon,
 } from "@/components/icons";
@@ -26,21 +26,61 @@ import { analyzeSimulation } from "@/lib/simulation/diagnostics";
 import type {
   Scenario,
   SimulationSnapshot,
-  ThreadDefinition,
-  TraceEvent,
 } from "@/lib/simulation/types";
+import {
+  ThreadStateTable,
+  ExecutionTimeline,
+  WaitForGraph,
+  ResourceMonitor,
+  EventLog,
+} from "@/components/simulation";
+import { saveSimulationRun } from "@/lib/simulation/history";
 
-export default function SimulationLabPage() {
+/**
+ * Normalizes query string parameter to a valid Scenario ID.
+ */
+function resolveScenarioId(param: string | null): string {
+  if (!param) return raceConditionScenario.id;
+  const normalized = param.toLowerCase().trim();
+  if (
+    normalized === "race-condition" ||
+    normalized === "scenario-race-condition" ||
+    normalized === "exp-shared-counter"
+  ) {
+    return raceConditionScenario.id;
+  }
+  if (
+    normalized === "deadlock" ||
+    normalized === "two-thread-deadlock" ||
+    normalized === "scenario-two-thread-deadlock" ||
+    normalized === "exp-two-thread-deadlock"
+  ) {
+    return deadlockScenario.id;
+  }
+  if (
+    normalized === "producer-consumer" ||
+    normalized === "scenario-producer-consumer" ||
+    normalized === "exp-producer-consumer"
+  ) {
+    return producerConsumerScenario.id;
+  }
+  const match = starterScenarios.find((s) => s.id === param);
+  return match ? match.id : raceConditionScenario.id;
+}
+
+function SimulationLabContent() {
+  const searchParams = useSearchParams();
+  const scenarioParam = searchParams.get("scenario") || searchParams.get("scenarioId");
+  const initialScenarioId = resolveScenarioId(scenarioParam);
+
   // Scenario Selection
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(
-    raceConditionScenario.id
-  );
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(initialScenarioId);
 
   const activeScenario: Scenario =
     starterScenarios.find((s) => s.id === selectedScenarioId) ??
     raceConditionScenario;
 
-  // Simulation State
+  // Single Source of Truth Simulation State
   const [snapshot, setSnapshot] = useState<SimulationSnapshot>(() =>
     createInitialSnapshot(activeScenario)
   );
@@ -58,13 +98,31 @@ export default function SimulationLabPage() {
     setIsRunning(false);
   }, []);
 
+  // Track previous query parameter to adjust state during render without effects
+  const [prevScenarioParam, setPrevScenarioParam] = useState(scenarioParam);
+
+  if (scenarioParam !== prevScenarioParam) {
+    setPrevScenarioParam(scenarioParam);
+    const resolved = resolveScenarioId(scenarioParam);
+    if (resolved !== selectedScenarioId) {
+      setSelectedScenarioId(resolved);
+      const target =
+        starterScenarios.find((s) => s.id === resolved) ??
+        raceConditionScenario;
+      setSnapshot(createInitialSnapshot(target));
+      if (isRunning) {
+        setIsRunning(false);
+      }
+    }
+  }
+
   // Reset to initial scenario snapshot
   const handleReset = useCallback(() => {
     stopExecution();
     setSnapshot(createInitialSnapshot(activeScenario));
   }, [activeScenario, stopExecution]);
 
-  // Handle Scenario Change
+  // Handle Scenario Change via UI dropdown
   const handleScenarioChange = (scenarioId: string) => {
     stopExecution();
     setSelectedScenarioId(scenarioId);
@@ -72,6 +130,13 @@ export default function SimulationLabPage() {
       starterScenarios.find((s) => s.id === scenarioId) ??
       raceConditionScenario;
     setSnapshot(createInitialSnapshot(target));
+
+    // Keep URL parameter synchronized
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("scenario", scenarioId);
+      window.history.replaceState(null, "", url.toString());
+    }
   };
 
   // Advance by single operation step
@@ -98,20 +163,30 @@ export default function SimulationLabPage() {
         stopExecution();
       }
 
-      if (next.status === "COMPLETED" || next.status === "STEP_LIMIT_REACHED") {
+      if (next.status === "COMPLETED" || next.status === "STEP_LIMIT_REACHED" || next.status === "DEADLOCKED") {
         stopExecution();
+        saveSimulationRun(next, activeScenario);
       }
 
       return next;
     });
-  }, [stopExecution]);
+  }, [stopExecution, activeScenario]);
+
+  // Manual save handler for student run archiving
+  const [saveToast, setSaveToast] = useState<boolean>(false);
+  const handleSaveToReports = () => {
+    saveSimulationRun(snapshot, activeScenario);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2000);
+  };
 
   // Start continuous execution
   const handleRun = () => {
     if (
       isRunning ||
       snapshot.status === "COMPLETED" ||
-      snapshot.status === "STEP_LIMIT_REACHED"
+      snapshot.status === "STEP_LIMIT_REACHED" ||
+      snapshot.status === "DEADLOCKED"
     ) {
       return;
     }
@@ -172,46 +247,8 @@ export default function SimulationLabPage() {
     snapshot.readyQueue.length === 0 &&
     snapshot.threads.some((t) => t.state === "BLOCKED");
 
-  // Concurrency diagnostics analysis
+  // Concurrency diagnostics analysis derived strictly from current snapshot
   const diagnosticReport = analyzeSimulation(snapshot);
-
-  // Helper for thread state pill styling
-  const renderStateBadge = (state: ThreadDefinition["state"]) => {
-    switch (state) {
-      case "RUNNING":
-        return (
-          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            RUNNING
-          </span>
-        );
-      case "READY":
-        return (
-          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
-            READY
-          </span>
-        );
-      case "BLOCKED":
-        return (
-          <span className="inline-flex items-center rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200">
-            BLOCKED
-          </span>
-        );
-      case "DONE":
-        return (
-          <span className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
-            DONE
-          </span>
-        );
-      case "NEW":
-      default:
-        return (
-          <span className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500 border border-slate-200">
-            NEW
-          </span>
-        );
-    }
-  };
 
   // Helper for status badge styling
   const renderStatusBadge = (status: SimulationSnapshot["status"]) => {
@@ -252,57 +289,6 @@ export default function SimulationLabPage() {
         return (
           <span className="inline-flex items-center rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 border border-slate-200">
             IDLE
-          </span>
-        );
-    }
-  };
-
-  // Helper for event type badge in log
-  const renderEventBadge = (type: TraceEvent["eventType"]) => {
-    switch (type) {
-      case "CONTEXT_SWITCH":
-        return (
-          <span className="inline-block rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 border border-purple-200">
-            CONTEXT SWITCH
-          </span>
-        );
-      case "STATE_CHANGE":
-        return (
-          <span className="inline-block rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
-            STATE CHANGE
-          </span>
-        );
-      case "MEMORY_READ":
-        return (
-          <span className="inline-block rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 border border-cyan-200">
-            MEMORY READ
-          </span>
-        );
-      case "MEMORY_WRITE":
-        return (
-          <span className="inline-block rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-200">
-            MEMORY WRITE
-          </span>
-        );
-      case "LOCK_ACQUIRED":
-      case "LOCK_RELEASED":
-      case "LOCK_BLOCKED":
-        return (
-          <span className="inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">
-            MUTEX
-          </span>
-        );
-      case "SEMAPHORE_WAIT":
-      case "SEMAPHORE_SIGNAL":
-        return (
-          <span className="inline-block rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 border border-teal-200">
-            SEMAPHORE
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-block rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
-            {type.replace("_", " ")}
           </span>
         );
     }
@@ -398,7 +384,7 @@ export default function SimulationLabPage() {
                 type="button"
                 onClick={handlePause}
                 disabled={!isRunning}
-                className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+                className={`inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
                   !isRunning
                     ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed"
                     : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
@@ -414,7 +400,7 @@ export default function SimulationLabPage() {
                 type="button"
                 onClick={handleStep}
                 disabled={isRunning || isTerminated || isBlocked}
-                className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+                className={`inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
                   isRunning || isTerminated || isBlocked
                     ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed"
                     : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
@@ -429,11 +415,25 @@ export default function SimulationLabPage() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
                 title="Reset scenario to time 0"
               >
                 <RotateCcwIcon size={12} className="text-slate-600" />
                 <span>Reset</span>
+              </button>
+
+              {/* SAVE RUN */}
+              <button
+                type="button"
+                onClick={handleSaveToReports}
+                className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+                  saveToast
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                }`}
+                title="Save snapshot to run history for reports"
+              >
+                <span>{saveToast ? "Saved!" : "Save Run"}</span>
               </button>
             </div>
           </div>
@@ -539,38 +539,6 @@ export default function SimulationLabPage() {
                   {diagnosticReport.explanation}
                 </p>
 
-                {/* Wait-For Graph Edges */}
-                {diagnosticReport.waitForGraph.edges.length > 0 && (
-                  <div className="pt-1">
-                    <span className="text-[11px] font-semibold text-slate-800 block mb-1">
-                      Wait-For Graph Dependency Edges:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {diagnosticReport.waitForGraph.edges.map((edge, idx) => (
-                        <div
-                          key={idx}
-                          className="inline-flex items-center gap-1.5 rounded bg-white px-2 py-1 text-[11px] font-mono border border-slate-200 shadow-2xs text-slate-800"
-                        >
-                          <span className="font-semibold text-rose-700">
-                            {edge.fromThreadId}
-                          </span>
-                          <span className="text-slate-400">&rarr;</span>
-                          <span className="font-semibold text-slate-900">
-                            {edge.toThreadId}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-sans">
-                            (waiting for{" "}
-                            <strong className="text-amber-700">
-                              {edge.lockName}
-                            </strong>
-                            )
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Suggested Prevention / Recovery Technique */}
                 <div className="pt-2 border-t border-slate-200/70">
                   <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wide block mb-0.5">
@@ -585,280 +553,47 @@ export default function SimulationLabPage() {
           </div>
         )}
 
-        {/* Thread State Table */}
-        <div className="rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden">
-          <div className="border-b border-slate-200 bg-slate-50/75 px-4 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ThreadMonitorIcon size={16} className="text-slate-600" />
-              <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">
-                Simulated Threads & Register State
-              </h2>
-            </div>
-            <span className="text-[11px] text-slate-500 font-medium">
-              Ready Queue: [{snapshot.readyQueue.length > 0 ? snapshot.readyQueue.join(", ") : "Empty"}]
-            </span>
-          </div>
+        {/* SECTION 1: Thread State Monitor */}
+        <section id="thread-state-section" aria-labelledby="thread-state-section">
+          <ThreadStateTable snapshot={snapshot} />
+        </section>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
-                  <th className="py-2 px-3">Thread</th>
-                  <th className="py-2 px-3">Priority</th>
-                  <th className="py-2 px-3">State</th>
-                  <th className="py-2 px-3">Current Instruction</th>
-                  <th className="py-2 px-3">Local Registers</th>
-                  <th className="py-2 px-3">Held Locks</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {snapshot.threads.map((thread) => {
-                  const currentOp = thread.operations[thread.currentOperationIndex];
-                  const registers = snapshot.threadRegisters[thread.id] || {};
-                  const regEntries = Object.entries(registers);
+        {/* SECTION 2: Execution Timeline */}
+        <section id="execution-timeline-section" aria-labelledby="execution-timeline-section">
+          <ExecutionTimeline snapshot={snapshot} />
+        </section>
 
-                  return (
-                    <tr
-                      key={thread.id}
-                      className={
-                        thread.id === snapshot.activeThreadId
-                          ? "bg-blue-50/40"
-                          : "hover:bg-slate-50/50"
-                      }
-                    >
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-slate-900">
-                          {thread.name}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {thread.id}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-700">
-                        {thread.priority}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {renderStateBadge(thread.state)}
-                        {thread.state === "BLOCKED" && thread.waitingReason && (
-                          <div className="text-[10px] text-amber-700 mt-1 max-w-xs">
-                            {thread.waitingReason}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 max-w-xs">
-                        {currentOp ? (
-                          <div>
-                            <span className="font-mono text-[10px] font-semibold text-blue-600 mr-1.5">
-                              [{currentOp.type}]
-                            </span>
-                            <span className="text-slate-700">
-                              {currentOp.description}
-                            </span>
-                            <div className="text-[10px] text-slate-400">
-                              Step {thread.currentOperationIndex + 1} of {thread.operations.length}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic">
-                            Completed all instructions
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {regEntries.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 font-mono text-[11px]">
-                            {regEntries.map(([reg, val]) => (
-                              <span
-                                key={reg}
-                                className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-800 border border-slate-200"
-                              >
-                                {reg} = {String(val)}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">—</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {thread.heldLocks.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {thread.heldLocks.map((lockId) => (
-                              <span
-                                key={lockId}
-                                className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200"
-                              >
-                                {lockId}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">None</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* SECTION 3: Wait-for Graph */}
+        <section id="wait-for-graph-section" aria-labelledby="wait-for-graph-section">
+          <WaitForGraph snapshot={snapshot} />
+        </section>
 
-        {/* Shared Resource State Panels */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {/* Shared Variables */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 border-b border-slate-100 pb-2 mb-2.5">
-              <LayersIcon size={14} className="text-blue-500" />
-              <span>Shared Variables</span>
-            </div>
-            {snapshot.sharedVariables.length > 0 ? (
-              <div className="space-y-2">
-                {snapshot.sharedVariables.map((v) => (
-                  <div
-                    key={v.id}
-                    className="flex items-center justify-between rounded border border-slate-100 bg-slate-50/60 p-2 text-xs"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-800">{v.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        Initial: {String(v.initialValue)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="rounded bg-white px-2 py-1 font-mono text-xs font-bold text-blue-700 border border-slate-200 shadow-2xs">
-                        {String(v.currentValue)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-slate-400 italic py-2">
-                No shared memory variables in this scenario.
-              </div>
-            )}
-          </div>
+        {/* SECTION 4: Resource & Synchronization Monitor */}
+        <section id="resource-monitor-section" aria-labelledby="resource-monitor-section">
+          <ResourceMonitor snapshot={snapshot} />
+        </section>
 
-          {/* Mutex Locks */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 border-b border-slate-100 pb-2 mb-2.5">
-              <LockIcon size={14} className="text-amber-500" />
-              <span>Mutex Locks</span>
-            </div>
-            {snapshot.locks.length > 0 ? (
-              <div className="space-y-2">
-                {snapshot.locks.map((lock) => (
-                  <div
-                    key={lock.id}
-                    className="rounded border border-slate-100 bg-slate-50/60 p-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-800">{lock.name}</span>
-                      <span
-                        className={`text-[10px] font-semibold rounded px-1.5 py-0.5 border ${
-                          lock.ownerThreadId
-                            ? "bg-amber-50 text-amber-800 border-amber-200"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        }`}
-                      >
-                        {lock.ownerThreadId ? `Held by ${lock.ownerThreadId}` : "FREE"}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-1">
-                      Wait Queue:{" "}
-                      {lock.waitingQueue.length > 0
-                        ? `[${lock.waitingQueue.join(", ")}]`
-                        : "Empty"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-slate-400 italic py-2">
-                No mutex locks configured in this scenario.
-              </div>
-            )}
-          </div>
-
-          {/* Semaphores */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 border-b border-slate-100 pb-2 mb-2.5">
-              <SyncIcon size={14} className="text-teal-500" />
-              <span>Counting / Binary Semaphores</span>
-            </div>
-            {snapshot.semaphores.length > 0 ? (
-              <div className="space-y-2">
-                {snapshot.semaphores.map((sem) => (
-                  <div
-                    key={sem.id}
-                    className="flex items-center justify-between rounded border border-slate-100 bg-slate-50/60 p-2 text-xs"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-800">{sem.name}</div>
-                      <div className="text-[10px] text-slate-400">
-                        Waiters: {sem.waitingQueue.length > 0 ? `[${sem.waitingQueue.join(", ")}]` : "None"}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="rounded bg-white px-2 py-1 font-mono text-xs font-bold text-teal-700 border border-slate-200 shadow-2xs">
-                        {sem.currentValue}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-slate-400 italic py-2">
-                No semaphores configured in this scenario.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Execution Event Log */}
-        <div className="rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden">
-          <div className="border-b border-slate-200 bg-slate-50/75 px-4 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ClockIcon size={16} className="text-slate-600" />
-              <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">
-                Discrete Event Trace Log
-              </h2>
-            </div>
-            <span className="text-[11px] text-slate-500 font-mono">
-              {snapshot.eventTrace.length} events logged
-            </span>
-          </div>
-
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 font-sans text-xs">
-            {snapshot.eventTrace.length > 0 ? (
-              [...snapshot.eventTrace].reverse().map((evt) => (
-                <div
-                  key={evt.id}
-                  className="px-4 py-2 hover:bg-slate-50/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4"
-                >
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <span className="font-mono text-[11px] text-slate-400 shrink-0">
-                      T={evt.timestamp}
-                    </span>
-                    <span className="shrink-0">{renderEventBadge(evt.eventType)}</span>
-                    <span className="text-slate-700 truncate">
-                      {evt.description}
-                    </span>
-                  </div>
-                  <div className="text-[10px] font-mono text-slate-400 shrink-0 sm:text-right">
-                    Thread: {evt.threadId}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="px-4 py-8 text-center text-xs text-slate-400 italic">
-                Execution trace is empty. Click <strong>Step</strong> or <strong>Run</strong> to advance instructions.
-              </div>
-            )}
-          </div>
-        </div>
+        {/* SECTION 5: Execution Event Log */}
+        <section id="event-log-section" aria-labelledby="event-log-section">
+          <EventLog snapshot={snapshot} />
+        </section>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function SimulationLabPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardLayout>
+          <div className="p-8 text-center text-xs text-slate-500">
+            Initializing simulation environment...
+          </div>
+        </DashboardLayout>
+      }
+    >
+      <SimulationLabContent />
+    </Suspense>
   );
 }

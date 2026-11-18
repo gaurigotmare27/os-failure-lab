@@ -757,3 +757,33 @@ export function RotateCcwIcon({
     </svg>
   );
 }
+
+export function CheckCircleIcon({
+  size = 16,
+  width,
+  height,
+  className = "",
+  style,
+  ...props
+}: IconProps) {
+  const finalW = width ?? size;
+  const finalH = height ?? size;
+  return (
+    <svg
+      width={finalW}
+      height={finalH}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+      style={{ width: finalW, height: finalH, ...style }}
+      {...props}
+    >
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}

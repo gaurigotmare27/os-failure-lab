@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { QuickStartExperiment } from "@/types/dashboard";
 import { PlayCircleIcon } from "./icons";
 
@@ -8,8 +9,22 @@ interface QuickStartCardProps {
 }
 
 export function QuickStartCard({ experiment, icon }: QuickStartCardProps) {
+  const getScenarioQuery = (id: string) => {
+    switch (id) {
+      case "exp-shared-counter":
+        return "scenario-race-condition";
+      case "exp-two-thread-deadlock":
+        return "scenario-two-thread-deadlock";
+      case "exp-producer-consumer":
+      default:
+        return "scenario-producer-consumer";
+    }
+  };
+
+  const targetUrl = `/simulation?scenario=${getScenarioQuery(experiment.id)}`;
+
   return (
-    <div className="flex flex-col justify-between rounded border border-slate-200 bg-white p-4 shadow-2xs hover:border-slate-300 transition-colors">
+    <div className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-2xs hover:border-slate-300 transition-colors">
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
@@ -38,13 +53,13 @@ export function QuickStartCard({ experiment, icon }: QuickStartCardProps) {
       </div>
 
       <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-end">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:text-slate-900 transition-colors"
+        <Link
+          href={targetUrl}
+          className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors shadow-2xs"
         >
           <PlayCircleIcon size={12} className="text-slate-600" />
           <span>Open Scenario</span>
-        </button>
+        </Link>
       </div>
     </div>
   );

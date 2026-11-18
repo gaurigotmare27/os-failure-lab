@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { LearningModule } from "@/types/dashboard";
 import { ArrowRightIcon } from "./icons";
 
@@ -9,7 +10,7 @@ interface ModuleCardProps {
 
 export function ModuleCard({ module, icon }: ModuleCardProps) {
   return (
-    <div className="flex flex-col justify-between rounded border border-slate-200 bg-white p-4 shadow-2xs hover:border-slate-300 transition-colors">
+    <div className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-2xs hover:border-slate-300 transition-colors">
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
@@ -45,13 +46,13 @@ export function ModuleCard({ module, icon }: ModuleCardProps) {
       </div>
 
       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end">
-        <a
-          href="#"
-          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+        <Link
+          href={`/modules/${module.id}`}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
         >
-          <span>Explore</span>
+          <span>Explore Module</span>
           <ArrowRightIcon size={12} className="text-blue-600" />
-        </a>
+        </Link>
       </div>
     </div>
   );

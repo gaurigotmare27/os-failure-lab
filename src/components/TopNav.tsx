@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   {
     id: "experiments",
     label: "Experiments",
-    href: "#",
+    href: "/experiments",
     icon: "experiments",
   },
   {
@@ -39,25 +39,25 @@ const navItems: NavItem[] = [
   {
     id: "deadlock-analyzer",
     label: "Deadlock Analyzer",
-    href: "#",
+    href: "/deadlock-analyzer",
     icon: "deadlock-analyzer",
   },
   {
     id: "thread-monitor",
     label: "Thread Monitor",
-    href: "#",
+    href: "/thread-monitor",
     icon: "thread-monitor",
   },
   {
     id: "reports",
     label: "Reports",
-    href: "#",
+    href: "/reports",
     icon: "reports",
   },
   {
     id: "settings",
     label: "Settings",
-    href: "#",
+    href: "/settings",
     icon: "settings",
   },
 ];

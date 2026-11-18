@@ -127,12 +127,18 @@ export default function Home() {
                 and experiment with synchronization.
               </p>
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-2">
+              <Link
+                href="/experiments"
+                className="inline-flex items-center gap-1.5 rounded bg-white border border-slate-300 px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+              >
+                <span>Browse Experiments</span>
+              </Link>
               <Link
                 href="/simulation"
                 className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors shadow-2xs"
               >
-                <span>Start an Experiment</span>
+                <span>Launch Simulation Lab</span>
                 <ArrowRightIcon size={12} className="text-white" />
               </Link>
             </div>
@@ -209,16 +215,25 @@ export default function Home() {
 
             {/* Quick Start Section */}
             <section id="quickstart" aria-labelledby="quickstart-heading">
-              <div className="mb-2.5">
-                <h2
-                  id="quickstart-heading"
-                  className="text-xs font-semibold text-slate-900 uppercase tracking-wide"
+              <div className="mb-2.5 flex items-center justify-between">
+                <div>
+                  <h2
+                    id="quickstart-heading"
+                    className="text-xs font-semibold text-slate-900 uppercase tracking-wide"
+                  >
+                    Quick Start Experiments
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Pre-configured scenarios ready for execution trace inspection
+                  </p>
+                </div>
+                <Link
+                  href="/experiments"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
                 >
-                  Quick Start Experiments
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Pre-configured scenarios ready for execution trace inspection
-                </p>
+                  <span>All experiments</span>
+                  <ArrowRightIcon size={12} />
+                </Link>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

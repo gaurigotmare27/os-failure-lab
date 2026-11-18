@@ -180,10 +180,11 @@ export function buildWaitForGraph(snapshot: SimulationSnapshot): WaitForGraph {
     for (const lock of targetLocks) {
       const ownerId = lock.ownerThreadId;
       // Ignore edges without a valid owner, or self-dependencies
+      // Completed threads cannot hold or wait for locks in an active deadlock
       if (
         ownerId !== null &&
         ownerId !== thread.id &&
-        snapshot.threads.some((t) => t.id === ownerId)
+        snapshot.threads.some((t) => t.id === ownerId && t.state !== "DONE")
       ) {
         // Prevent duplicate edges
         const edgeExists = edges.some(
@@ -212,6 +213,33 @@ export function buildWaitForGraph(snapshot: SimulationSnapshot): WaitForGraph {
     edges,
     adjacencyList,
   };
+}
+
+/**
+ * Computes a canonical signature for a directed cycle of edges.
+ *
+ * Preserves the exact directed sequence of edges and locks, while ensuring
+ * that any cyclic rotation of the same cycle (e.g. A->B->A vs B->A->B)
+ * produces the identical canonical key.
+ *
+ * Distinct cycles that share the same thread set but use different locks
+ * or different edge directions produce distinct keys and are NOT merged.
+ */
+function getCanonicalCycleKey(edges: WaitForEdge[]): string {
+  if (edges.length === 0) return "";
+  const stepTokens = edges.map(
+    (e) => `${e.fromThreadId}--[${e.lockId}]-->${e.toThreadId}`
+  );
+
+  const rotations: string[] = [];
+  const n = stepTokens.length;
+  for (let i = 0; i < n; i++) {
+    rotations.push(
+      [...stepTokens.slice(i), ...stepTokens.slice(0, i)].join(" -> ")
+    );
+  }
+  rotations.sort();
+  return rotations[0];
 }
 
 /**
@@ -258,29 +286,27 @@ export function detectDeadlock(
           const cycleThreadIds = cycleSlice.map((item) => item.threadId);
           const fullCycleThreadIds = [...cycleThreadIds, v];
 
+          // Collect the exact directed edges forming this cycle:
+          // The edges between intermediate nodes in the stack, plus the back-edge to v
           const cycleEdges: WaitForEdge[] = [];
-          const cycleLockIds = new Set<string>();
-
-          for (let i = 0; i < cycleSlice.length; i++) {
-            const nextNode = cycleSlice[(i + 1) % cycleSlice.length].threadId;
-            const matchingEdge =
-              (graph.adjacencyList[cycleSlice[i].threadId] || []).find(
-                (e) => e.toThreadId === nextNode
-              ) ?? cycleSlice[i].edge;
-
-            if (matchingEdge) {
-              cycleEdges.push(matchingEdge);
-              cycleLockIds.add(matchingEdge.lockId);
+          for (let i = cycleStartIndex; i < currentPath.length - 1; i++) {
+            if (currentPath[i].edge) {
+              cycleEdges.push(currentPath[i].edge!);
             }
           }
+          cycleEdges.push(edge);
 
-          // Canonical key for deduplicating identical rotated cycles
-          const canonicalKey = [...cycleThreadIds].sort().join(",");
+          const cycleLockIds = Array.from(
+            new Set(cycleEdges.map((e) => e.lockId))
+          );
+
+          // Canonical key based on the directed edges and locks
+          const canonicalKey = getCanonicalCycleKey(cycleEdges);
           if (!seenCycleKeys.has(canonicalKey)) {
             seenCycleKeys.add(canonicalKey);
             cycles.push({
               threadIds: fullCycleThreadIds,
-              lockIds: Array.from(cycleLockIds),
+              lockIds: cycleLockIds,
               edges: cycleEdges,
             });
           }
@@ -298,9 +324,11 @@ export function detectDeadlock(
     }
   }
 
+  // Completed threads can never be classified as deadlocked
   const deadlockedThreadIds = Array.from(
     new Set(cycles.flatMap((c) => c.threadIds.slice(0, -1)))
-  );
+  ).filter((id) => snapshot.threadStates[id] !== "DONE");
+
   const deadlockedLockIds = Array.from(
     new Set(cycles.flatMap((c) => c.lockIds))
   );
@@ -356,10 +384,19 @@ export function analyzeNoProgress(
   }
 
   // Active or ready execution exists
+  // Verify that the active thread exists and is actually in RUNNING state
+  const activeThread = snapshot.activeThreadId
+    ? snapshot.threads.find((t) => t.id === snapshot.activeThreadId)
+    : undefined;
+  const hasActiveRunningThread =
+    activeThread !== undefined &&
+    activeThread.state === "RUNNING" &&
+    snapshot.threadStates[activeThread.id] === "RUNNING";
+
   const canExecute =
     readyThreads.length > 0 ||
     runningThreads.length > 0 ||
-    snapshot.activeThreadId !== null;
+    hasActiveRunningThread;
 
   if (canExecute) {
     return {
@@ -499,11 +536,20 @@ export function analyzeSimulation(
   const noProgressResult = analyzeNoProgress(snapshot);
   const lockOrderCheck = checkLockOrderingViolation(snapshot.threads);
 
-  // Check for active mutex contention (threads waiting for locks held by others, without a cycle)
-  const contendedLocks = snapshot.locks.filter((l) => l.waitingQueue.length > 0);
+  // Check for active mutex contention (threads waiting for locks held by a valid owner thread, without a cycle)
+  // Classify MUTEX_CONTENTION only when the waiting lock has a valid owner thread.
+  // Do not report ownerless locks as normal mutex contention.
+  const contendedLocks = snapshot.locks.filter(
+    (l) =>
+      l.waitingQueue.length > 0 &&
+      l.ownerThreadId !== null &&
+      snapshot.threads.some(
+        (t) => t.id === l.ownerThreadId && t.state !== "DONE"
+      )
+  );
   const waitingThreadIds = Array.from(
     new Set(contendedLocks.flatMap((l) => l.waitingQueue))
-  );
+  ).filter((id) => snapshot.threadStates[id] !== "DONE");
 
   // Condition 1: DEADLOCK
   if (deadlockResult.isDeadlocked) {
@@ -587,8 +633,8 @@ export function analyzeSimulation(
     };
   }
 
-  // Condition 4: MUTEX CONTENTION (Active contention without deadlock)
-  if (contendedLocks.length > 0) {
+  // Condition 4: MUTEX CONTENTION (Active contention with valid lock owners without deadlock)
+  if (contendedLocks.length > 0 && waitingThreadIds.length > 0) {
     const lockNames = contendedLocks.map((l) => l.name).join(", ");
     return {
       condition: "MUTEX_CONTENTION",
