@@ -646,3 +646,114 @@ export function PlayCircleIcon({
     </svg>
   );
 }
+
+export function PlayIcon({
+  size = 16,
+  width,
+  height,
+  className = "",
+  style,
+  ...props
+}: IconProps) {
+  const finalW = width ?? size;
+  const finalH = height ?? size;
+  return (
+    <svg
+      width={finalW}
+      height={finalH}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={`shrink-0 ${className}`}
+      style={{ width: finalW, height: finalH, ...style }}
+      {...props}
+    >
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </svg>
+  );
+}
+
+export function PauseIcon({
+  size = 16,
+  width,
+  height,
+  className = "",
+  style,
+  ...props
+}: IconProps) {
+  const finalW = width ?? size;
+  const finalH = height ?? size;
+  return (
+    <svg
+      width={finalW}
+      height={finalH}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={`shrink-0 ${className}`}
+      style={{ width: finalW, height: finalH, ...style }}
+      {...props}
+    >
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+    </svg>
+  );
+}
+
+export function StepForwardIcon({
+  size = 16,
+  width,
+  height,
+  className = "",
+  style,
+  ...props
+}: IconProps) {
+  const finalW = width ?? size;
+  const finalH = height ?? size;
+  return (
+    <svg
+      width={finalW}
+      height={finalH}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+      style={{ width: finalW, height: finalH, ...style }}
+      {...props}
+    >
+      <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" />
+      <line x1="19" y1="5" x2="19" y2="19" />
+    </svg>
+  );
+}
+
+export function RotateCcwIcon({
+  size = 16,
+  width,
+  height,
+  className = "",
+  style,
+  ...props
+}: IconProps) {
+  const finalW = width ?? size;
+  const finalH = height ?? size;
+  return (
+    <svg
+      width={finalW}
+      height={finalH}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+      style={{ width: finalW, height: finalH, ...style }}
+      {...props}
+    >
+      <path d="M1 4v6h6" />
+      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+    </svg>
+  );
+}

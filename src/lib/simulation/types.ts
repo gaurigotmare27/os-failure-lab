@@ -190,7 +190,9 @@ export type TraceEventType =
   | "OPERATION_COMPLETE"
   | "CONTEXT_SWITCH"
   | "DEADLOCK_DETECTED"
-  | "STEP_LIMIT";
+  | "STEP_LIMIT"
+  | "MEMORY_READ"
+  | "MEMORY_WRITE";
 
 /**
  * 9. TraceEvent
@@ -237,6 +239,8 @@ export interface SimulationSnapshot {
   schedulingPolicy: SchedulingPolicy;
   /** Configured time quantum for Round Robin scheduling (where applicable) */
   timeQuantum?: number;
+  /** Number of operations/ticks executed by active thread in current quantum slice */
+  activeThreadQuantumUsed?: number;
   /** Current states of all threads mapped by thread ID */
   threadStates: Record<string, ThreadState>;
   /** Complete current state of each thread */

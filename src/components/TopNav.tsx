@@ -1,4 +1,8 @@
+"use client";
+
 import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LogoIcon,
   OverviewIcon,
@@ -17,9 +21,8 @@ const navItems: NavItem[] = [
   {
     id: "overview",
     label: "Overview",
-    href: "#",
+    href: "/",
     icon: "overview",
-    isActive: true,
   },
   {
     id: "experiments",
@@ -30,7 +33,7 @@ const navItems: NavItem[] = [
   {
     id: "simulation-lab",
     label: "Simulation Lab",
-    href: "#",
+    href: "/simulation",
     icon: "simulation-lab",
   },
   {
@@ -60,8 +63,20 @@ const navItems: NavItem[] = [
 ];
 
 export function TopNav() {
-  const renderIcon = (iconName: string, isActive: boolean) => {
-    const iconColor = isActive
+  const pathname = usePathname();
+
+  const isItemActive = (href: string) => {
+    if (href === "/") {
+      return pathname === "/" || pathname === "";
+    }
+    if (href !== "#") {
+      return pathname.startsWith(href);
+    }
+    return false;
+  };
+
+  const renderIcon = (iconName: string, active: boolean) => {
+    const iconColor = active
       ? "text-blue-400"
       : "text-slate-400 group-hover:text-slate-200";
 
@@ -155,21 +170,24 @@ export function TopNav() {
             className="flex space-x-1 overflow-x-auto scrollbar-none py-1"
             aria-label="Main Navigation"
           >
-            {navItems.map((item) => (
-              <a
-                key={item.id}
-                href={item.href}
-                className={`group inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                  item.isActive
-                    ? "bg-slate-800/90 text-white border-b-2 border-blue-400 font-semibold"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent"
-                }`}
-                aria-current={item.isActive ? "page" : undefined}
-              >
-                {renderIcon(item.icon, !!item.isActive)}
-                <span>{item.label}</span>
-              </a>
-            ))}
+            {navItems.map((item) => {
+              const active = isItemActive(item.href);
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={`group inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                    active
+                      ? "bg-slate-800/90 text-white border-b-2 border-blue-400 font-semibold"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent"
+                  }`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {renderIcon(item.icon, active)}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
 import { ModuleCard } from "@/components/ModuleCard";
@@ -127,13 +128,13 @@ export default function Home() {
               </p>
             </div>
             <div className="shrink-0">
-              <a
-                href="#quickstart"
+              <Link
+                href="/simulation"
                 className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors shadow-2xs"
               >
                 <span>Start an Experiment</span>
                 <ArrowRightIcon size={12} className="text-white" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>

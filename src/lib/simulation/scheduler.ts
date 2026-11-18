@@ -12,7 +12,7 @@
  * - Preserve stable ordering for equal priorities.
  */
 
-import { ThreadDefinition, SchedulingPolicy } from "./types";
+import type { ThreadDefinition, SchedulingPolicy } from "./types";
 
 /**
  * Creates a fast lookup Map of thread definitions by thread ID.
@@ -59,7 +59,12 @@ export function scheduleFCFS(
  * 2. ROUND_ROBIN Scheduling
  *
  * Selects the thread at the front of the ready queue in FIFO order.
- * In conjunction with quantum expiration preemption, threads rotate fairly.
+ *
+ * Note on Quantum Rotation:
+ * This scheduler preserves FIFO ready queue ordering during thread selection.
+ * Time-quantum rotation, slice tracking, and returning expired threads to the
+ * tail of the ready queue are handled by preemptThread() and the future
+ * execution engine loop.
  *
  * @param readyQueue Ordered FIFO queue of thread IDs
  * @param threads Current thread definitions in the simulation
@@ -90,7 +95,13 @@ export function scheduleRoundRobin(
  *
  * Selects the READY thread with the highest numerical priority value.
  * When multiple threads have equal highest priority, stable ordering is maintained
- * by selecting the one that appears earliest in the ready queue (earliest arrival).
+ * by selecting the one that appears earliest in the ready queue (earliest arrival / FIFO).
+ *
+ * Note on Preemption:
+ * Priority selection evaluates eligible threads at dispatch time. Actual preemption
+ * of a lower-priority running thread (for example, when a higher-priority thread
+ * unblocks or enters the ready queue) must be handled separately by the execution engine
+ * invoking preemptThread() before dispatching.
  *
  * @param readyQueue Ordered FIFO queue of thread IDs
  * @param threads Current thread definitions in the simulation
