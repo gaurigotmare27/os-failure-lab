@@ -25,48 +25,48 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-4xl">
+      <div className="space-y-8 max-w-4xl">
         {/* Breadcrumb & Header */}
-        <div className="border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+        <div className="border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-2">
             <Link href="/" className="hover:text-slate-800 transition-colors">
               Overview
             </Link>
             <span>/</span>
-            <span className="font-medium text-slate-800">Settings</span>
+            <span className="font-semibold text-slate-800">Settings</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
               Laboratory & Simulator Settings
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Configure deterministic execution parameters, scheduler defaults, and environment preferences.
+            <p className="text-sm sm:text-base text-slate-600 mt-1">
+              Configure deterministic execution parameters, scheduler defaults, and runtime environment preferences.
             </p>
           </div>
         </div>
 
         {saved && (
-          <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 flex items-center gap-2">
-            <CheckCircleIcon size={16} className="text-emerald-600 shrink-0" />
-            <span>Settings saved successfully. New preferences will apply to newly initialized simulation scenarios.</span>
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900 flex items-center gap-3 shadow-2xs">
+            <CheckCircleIcon size={20} className="text-emerald-600 shrink-0" />
+            <span className="font-medium">Settings saved successfully. New preferences will apply to newly initialized simulation scenarios.</span>
           </div>
         )}
 
-        <form onSubmit={handleSave} className="space-y-5">
+        <form onSubmit={handleSave} className="space-y-6">
           {/* Scheduler Parameters */}
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <SyncIcon size={16} className="text-blue-600" />
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+          <div className="lab-card p-6 space-y-5">
+            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+              <SyncIcon size={18} className="text-blue-600" />
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                 CPU Scheduler Configuration
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label
                   htmlFor="default-policy"
-                  className="block text-xs font-semibold text-slate-700 mb-1"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5"
                 >
                   Default Scheduling Algorithm
                 </label>
@@ -74,21 +74,21 @@ export default function SettingsPage() {
                   id="default-policy"
                   value={defaultPolicy}
                   onChange={(e) => setDefaultPolicy(e.target.value)}
-                  className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden shadow-2xs"
                 >
                   <option value="ROUND_ROBIN">Round Robin (Preemptive Time-Slicing)</option>
                   <option value="FCFS">First-Come, First-Served (FCFS)</option>
                   <option value="PRIORITY">Priority Scheduling (Highest Priority First)</option>
                 </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Determines how the ready queue orders eligible threads.
+                <p className="text-xs text-slate-500 mt-1.5 leading-normal">
+                  Determines how the ready queue orders and dispatches eligible threads.
                 </p>
               </div>
 
               <div>
                 <label
                   htmlFor="default-quantum"
-                  className="block text-xs font-semibold text-slate-700 mb-1"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5"
                 >
                   Round Robin Time Quantum (Clock Ticks)
                 </label>
@@ -99,29 +99,29 @@ export default function SettingsPage() {
                   max={10}
                   value={defaultQuantum}
                   onChange={(e) => setDefaultQuantum(Number(e.target.value))}
-                  className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden shadow-2xs"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Discrete tick allocation before forced CPU preemption.
+                <p className="text-xs text-slate-500 mt-1.5 leading-normal">
+                  Discrete tick allocation before forced CPU preemption and context switch.
                 </p>
               </div>
             </div>
           </div>
 
           {/* Engine Execution Timing */}
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <ClockIcon size={16} className="text-slate-600" />
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                Simulation Engine Timing
+          <div className="lab-card p-6 space-y-5">
+            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+              <ClockIcon size={18} className="text-slate-600" />
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Simulation Engine Timing & Limits
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label
                   htmlFor="step-interval"
-                  className="block text-xs font-semibold text-slate-700 mb-1"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5"
                 >
                   Auto-Run Playback Interval (ms)
                 </label>
@@ -133,17 +133,17 @@ export default function SettingsPage() {
                   step={50}
                   value={stepInterval}
                   onChange={(e) => setStepInterval(Number(e.target.value))}
-                  className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden shadow-2xs"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Delay between consecutive automated step executions.
+                <p className="text-xs text-slate-500 mt-1.5 leading-normal">
+                  Delay between consecutive automated step executions during continuous run.
                 </p>
               </div>
 
               <div>
                 <label
                   htmlFor="max-trace"
-                  className="block text-xs font-semibold text-slate-700 mb-1"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5"
                 >
                   Maximum Event Trace Limit
                 </label>
@@ -155,47 +155,47 @@ export default function SettingsPage() {
                   step={100}
                   value={maxTraceLimit}
                   onChange={(e) => setMaxTraceLimit(Number(e.target.value))}
-                  className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden shadow-2xs"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Safety halt trigger preventing infinite loop execution.
+                <p className="text-xs text-slate-500 mt-1.5 leading-normal">
+                  Safety halt trigger preventing runaway infinite execution traces.
                 </p>
               </div>
             </div>
           </div>
 
           {/* Engine Metadata Reference */}
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-3">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <LayersIcon size={16} className="text-slate-600" />
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+          <div className="lab-card p-6 space-y-4">
+            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+              <LayersIcon size={18} className="text-slate-600" />
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                 System Runtime Environment
               </h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="border border-slate-100 p-2 rounded bg-slate-50">
-                <span className="text-[10px] text-slate-400 font-mono block">MODEL</span>
-                <span className="font-semibold text-slate-800">POSIX Threading</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div className="border border-slate-200 p-3 rounded-lg bg-slate-50/70 space-y-0.5">
+                <span className="text-[11px] text-slate-500 font-mono uppercase tracking-wider font-bold block">MODEL</span>
+                <span className="font-bold text-sm text-slate-900">POSIX Threading</span>
               </div>
-              <div className="border border-slate-100 p-2 rounded bg-slate-50">
-                <span className="text-[10px] text-slate-400 font-mono block">EXECUTION</span>
-                <span className="font-semibold text-slate-800">Discrete-Event</span>
+              <div className="border border-slate-200 p-3 rounded-lg bg-slate-50/70 space-y-0.5">
+                <span className="text-[11px] text-slate-500 font-mono uppercase tracking-wider font-bold block">EXECUTION</span>
+                <span className="font-bold text-sm text-slate-900">Discrete-Event</span>
               </div>
-              <div className="border border-slate-100 p-2 rounded bg-slate-50">
-                <span className="text-[10px] text-slate-400 font-mono block">DIAGNOSTICS</span>
-                <span className="font-semibold text-slate-800">Wait-For Graph</span>
+              <div className="border border-slate-200 p-3 rounded-lg bg-slate-50/70 space-y-0.5">
+                <span className="text-[11px] text-slate-500 font-mono uppercase tracking-wider font-bold block">DIAGNOSTICS</span>
+                <span className="font-bold text-sm text-slate-900">Wait-For Graph</span>
               </div>
-              <div className="border border-slate-100 p-2 rounded bg-slate-50">
-                <span className="text-[10px] text-slate-400 font-mono block">IMMUTABILITY</span>
-                <span className="font-semibold text-slate-800">Deep Snapshot</span>
+              <div className="border border-slate-200 p-3 rounded-lg bg-slate-50/70 space-y-0.5">
+                <span className="text-[11px] text-slate-500 font-mono uppercase tracking-wider font-bold block">STATE IMMUTABILITY</span>
+                <span className="font-bold text-sm text-slate-900">Deep Snapshot</span>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="submit"
-              className="rounded bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors shadow-2xs"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-xs"
             >
               Save Preferences
             </button>

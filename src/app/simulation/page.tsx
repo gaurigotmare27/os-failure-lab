@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   PlayIcon,
@@ -98,105 +99,96 @@ function SimulationLabContent() {
     setIsRunning(false);
   }, []);
 
-  // Track previous query parameter to adjust state during render without effects
-  const [prevScenarioParam, setPrevScenarioParam] = useState(scenarioParam);
-
-  if (scenarioParam !== prevScenarioParam) {
-    setPrevScenarioParam(scenarioParam);
-    const resolved = resolveScenarioId(scenarioParam);
-    if (resolved !== selectedScenarioId) {
-      setSelectedScenarioId(resolved);
-      const target =
-        starterScenarios.find((s) => s.id === resolved) ??
-        raceConditionScenario;
-      setSnapshot(createInitialSnapshot(target));
-      if (isRunning) {
-        setIsRunning(false);
-      }
-    }
-  }
-
-  // Reset to initial scenario snapshot
-  const handleReset = useCallback(() => {
-    stopExecution();
-    setSnapshot(createInitialSnapshot(activeScenario));
-  }, [activeScenario, stopExecution]);
-
-  // Handle Scenario Change via UI dropdown
+  // Sync snapshot when user switches scenario selector
   const handleScenarioChange = (scenarioId: string) => {
     stopExecution();
     setSelectedScenarioId(scenarioId);
-    const target =
-      starterScenarios.find((s) => s.id === scenarioId) ??
-      raceConditionScenario;
-    setSnapshot(createInitialSnapshot(target));
+    const targetScenario =
+      starterScenarios.find((s) => s.id === scenarioId) ?? raceConditionScenario;
+    setSnapshot(createInitialSnapshot(targetScenario));
+  };
 
-    // Keep URL parameter synchronized
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("scenario", scenarioId);
-      window.history.replaceState(null, "", url.toString());
+  // Sync query parameter change if navigated externally
+  useEffect(() => {
+    if (scenarioParam) {
+      const resolved = resolveScenarioId(scenarioParam);
+      if (resolved !== selectedScenarioId) {
+        stopExecution();
+        setSelectedScenarioId(resolved);
+        const targetScenario =
+          starterScenarios.find((s) => s.id === resolved) ?? raceConditionScenario;
+        setSnapshot(createInitialSnapshot(targetScenario));
+      }
     }
-  };
+  }, [scenarioParam, selectedScenarioId, stopExecution]);
 
-  // Advance by single operation step
+  // Handle single discrete simulation step
   const handleStep = useCallback(() => {
-    setSnapshot((prev) => {
-      // If terminal state, do not step further
+    setSnapshot((prevSnapshot) => {
       if (
-        prev.status === "COMPLETED" ||
-        prev.status === "STEP_LIMIT_REACHED" ||
-        prev.status === "DEADLOCKED"
+        prevSnapshot.status === "COMPLETED" ||
+        prevSnapshot.status === "STEP_LIMIT_REACHED" ||
+        prevSnapshot.status === "DEADLOCKED"
       ) {
         stopExecution();
-        return prev;
+        return prevSnapshot;
       }
 
-      const next = stepSimulation(prev);
+      // Check if stalled on blocking condition without runnable threads
+      const isBlocked =
+        prevSnapshot.activeThreadId === null &&
+        prevSnapshot.readyQueue.length === 0 &&
+        prevSnapshot.threads.some((t) => t.state === "BLOCKED");
 
-      // If no progress possible (e.g. deadlocked or all threads blocked)
+      if (isBlocked) {
+        stopExecution();
+        return prevSnapshot;
+      }
+
+      const nextSnapshot = stepSimulation(prevSnapshot);
+
+      // Auto-stop if terminal state reached
       if (
-        next.activeThreadId === null &&
-        next.readyQueue.length === 0 &&
-        !next.threads.every((t) => t.state === "DONE")
+        nextSnapshot.status === "COMPLETED" ||
+        nextSnapshot.status === "STEP_LIMIT_REACHED" ||
+        nextSnapshot.status === "DEADLOCKED"
       ) {
         stopExecution();
       }
 
-      if (next.status === "COMPLETED" || next.status === "STEP_LIMIT_REACHED" || next.status === "DEADLOCKED") {
-        stopExecution();
-        saveSimulationRun(next, activeScenario);
-      }
-
-      return next;
+      return nextSnapshot;
     });
-  }, [stopExecution, activeScenario]);
+  }, [stopExecution]);
 
-  // Manual save handler for student run archiving
-  const [saveToast, setSaveToast] = useState<boolean>(false);
-  const handleSaveToReports = () => {
-    saveSimulationRun(snapshot, activeScenario);
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 2000);
-  };
-
-  // Start continuous execution
+  // Handle run continuous playback
   const handleRun = () => {
     if (
-      isRunning ||
       snapshot.status === "COMPLETED" ||
       snapshot.status === "STEP_LIMIT_REACHED" ||
       snapshot.status === "DEADLOCKED"
     ) {
       return;
     }
-
     setIsRunning(true);
   };
 
-  // Pause execution
+  // Handle pause continuous playback
   const handlePause = () => {
     stopExecution();
+  };
+
+  // Handle reset to initial state
+  const handleReset = () => {
+    stopExecution();
+    setSnapshot(createInitialSnapshot(activeScenario));
+  };
+
+  // Save run snapshot to localStorage history
+  const [saveToast, setSaveToast] = useState<boolean>(false);
+  const handleSaveToReports = () => {
+    saveSimulationRun(snapshot, activeScenario);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2500);
   };
 
   // Continuous execution effect loop
@@ -255,39 +247,40 @@ function SimulationLabContent() {
     switch (status) {
       case "RUNNING":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             RUNNING
           </span>
         );
       case "COMPLETED":
         return (
-          <span className="inline-flex items-center rounded bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+          <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 border border-blue-200">
             COMPLETED
           </span>
         );
       case "DEADLOCKED":
         return (
-          <span className="inline-flex items-center rounded bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 border border-rose-200">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 border border-rose-300">
+            <span className="h-2 w-2 rounded-full bg-rose-600 animate-pulse" />
             DEADLOCKED
           </span>
         );
       case "STEP_LIMIT_REACHED":
         return (
-          <span className="inline-flex items-center rounded bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+          <span className="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 border border-amber-200">
             STEP LIMIT
           </span>
         );
       case "PAUSED":
         return (
-          <span className="inline-flex items-center rounded bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+          <span className="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 border border-amber-200">
             PAUSED
           </span>
         );
       case "IDLE":
       default:
         return (
-          <span className="inline-flex items-center rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 border border-slate-200">
+          <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-200">
             IDLE
           </span>
         );
@@ -296,31 +289,35 @@ function SimulationLabContent() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Breadcrumb & Header */}
-        <div className="border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-            <span>Overview</span>
+        <div className="border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-2">
+            <Link href="/" className="hover:text-slate-800 transition-colors">
+              Overview
+            </Link>
             <span>/</span>
-            <span className="font-medium text-slate-800">Simulation Lab</span>
+            <span className="font-semibold text-slate-800">Simulation Lab</span>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                 Simulation Laboratory
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Execute discrete-event concurrency scenarios, inspect thread state transitions, and analyze synchronization primitives.
+              <p className="text-sm sm:text-base text-slate-600 mt-1 max-w-3xl">
+                Execute discrete-event concurrency scenarios, inspect thread state transitions, and analyze synchronization primitives in real time.
               </p>
             </div>
+
             {snapshot.status === "DEADLOCKED" ? (
-              <div className="inline-flex items-center gap-1.5 rounded bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800 border border-rose-300">
-                <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+              <div className="inline-flex items-center gap-2 rounded-lg bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-800 border border-rose-300 shadow-2xs shrink-0 self-start sm:self-auto">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
                 Deadlock Confirmed (Circular Wait)
               </div>
             ) : isBlocked ? (
-              <div className="inline-flex items-center gap-1.5 rounded bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-300">
-                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+              <div className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800 border border-amber-300 shadow-2xs shrink-0 self-start sm:self-auto">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-ping" />
                 Execution Stalled (Unresolved Blocking)
               </div>
             ) : null}
@@ -328,13 +325,13 @@ function SimulationLabContent() {
         </div>
 
         {/* Top Control Bar & Scenario Selector */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="lab-card p-5">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
             {/* Scenario Selector */}
-            <div className="flex-1">
+            <div className="flex-1 space-y-2">
               <label
                 htmlFor="scenario-select"
-                className="block text-xs font-semibold text-slate-700 mb-1.5"
+                className="block text-xs font-bold uppercase tracking-wider text-slate-700"
               >
                 Select Experiment Scenario
               </label>
@@ -343,7 +340,7 @@ function SimulationLabContent() {
                   id="scenario-select"
                   value={selectedScenarioId}
                   onChange={(e) => handleScenarioChange(e.target.value)}
-                  className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                  className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden shadow-2xs"
                 >
                   <option value={raceConditionScenario.id}>
                     Shared Counter Race Condition (Lost Update)
@@ -355,27 +352,27 @@ function SimulationLabContent() {
                     Producer-Consumer Problem (Bounded Buffer)
                   </option>
                 </select>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-xs text-slate-500 leading-normal max-w-lg">
                   {activeScenario.description}
                 </span>
               </div>
             </div>
 
             {/* Playback Controls */}
-            <div className="flex items-center gap-2 shrink-0 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0 border-t lg:border-t-0 pt-4 lg:pt-0 border-slate-100">
               {/* RUN */}
               <button
                 type="button"
                 onClick={handleRun}
                 disabled={isRunning || isTerminated || isBlocked}
-                className={`inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium transition-colors shadow-2xs ${
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all shadow-xs ${
                   isRunning || isTerminated || isBlocked
                     ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-sm"
                 }`}
                 title="Run continuously"
               >
-                <PlayIcon size={12} className={isRunning ? "text-slate-400" : "text-white"} />
+                <PlayIcon size={14} className={isRunning ? "text-slate-400" : "text-white"} />
                 <span>Run</span>
               </button>
 
@@ -384,14 +381,14 @@ function SimulationLabContent() {
                 type="button"
                 onClick={handlePause}
                 disabled={!isRunning}
-                className={`inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all border shadow-2xs ${
                   !isRunning
                     ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
                 }`}
                 title="Pause execution"
               >
-                <PauseIcon size={12} className={!isRunning ? "text-slate-300" : "text-slate-700"} />
+                <PauseIcon size={14} className={!isRunning ? "text-slate-300" : "text-slate-700"} />
                 <span>Pause</span>
               </button>
 
@@ -400,14 +397,14 @@ function SimulationLabContent() {
                 type="button"
                 onClick={handleStep}
                 disabled={isRunning || isTerminated || isBlocked}
-                className={`inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all border shadow-2xs ${
                   isRunning || isTerminated || isBlocked
                     ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
                 }`}
-                title="Execute single operation"
+                title="Execute single discrete operation"
               >
-                <StepForwardIcon size={12} className={isRunning || isTerminated || isBlocked ? "text-slate-300" : "text-slate-700"} />
+                <StepForwardIcon size={14} className={isRunning || isTerminated || isBlocked ? "text-slate-300" : "text-slate-700"} />
                 <span>Step</span>
               </button>
 
@@ -415,10 +412,10 @@ function SimulationLabContent() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                title="Reset scenario to time 0"
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-2xs"
+                title="Reset scenario to clock T = 0"
               >
-                <RotateCcwIcon size={12} className="text-slate-600" />
+                <RotateCcwIcon size={14} className="text-slate-600" />
                 <span>Reset</span>
               </button>
 
@@ -426,67 +423,67 @@ function SimulationLabContent() {
               <button
                 type="button"
                 onClick={handleSaveToReports}
-                className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all border shadow-2xs ${
                   saveToast
                     ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
                 }`}
                 title="Save snapshot to run history for reports"
               >
-                <span>{saveToast ? "Saved!" : "Save Run"}</span>
+                <span>{saveToast ? "Saved to Reports!" : "Save Run"}</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Telemetry Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Logical Clock */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <div className="lab-card p-4 sm:p-5 space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
               <span>Logical Clock</span>
-              <ClockIcon size={14} className="text-slate-400" />
+              <ClockIcon size={16} className="text-blue-500" />
             </div>
-            <div className="text-xl font-bold text-slate-900 tracking-tight font-mono">
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-mono">
               T = {snapshot.logicalTime}
             </div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Discrete clock ticks</div>
+            <div className="text-xs text-slate-500 font-medium">Discrete clock ticks</div>
           </div>
 
           {/* Engine Status */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <div className="lab-card p-4 sm:p-5 space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
               <span>Engine Status</span>
-              <LayersIcon size={14} className="text-slate-400" />
+              <LayersIcon size={16} className="text-emerald-500" />
             </div>
-            <div className="mt-0.5">{renderStatusBadge(snapshot.status)}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Lifecycle phase</div>
+            <div className="pt-1">{renderStatusBadge(snapshot.status)}</div>
+            <div className="text-xs text-slate-500 font-medium pt-1">Lifecycle phase</div>
           </div>
 
           {/* Active CPU Thread */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <div className="lab-card p-4 sm:p-5 space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
               <span>Active CPU Thread</span>
-              <ThreadMonitorIcon size={14} className="text-slate-400" />
+              <ThreadMonitorIcon size={16} className="text-purple-500" />
             </div>
-            <div className="text-sm font-semibold text-slate-900 truncate">
+            <div className="text-base sm:text-lg font-bold text-slate-900 truncate">
               {activeThread ? activeThread.name : "None (Idle)"}
             </div>
-            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+            <div className="text-xs text-slate-500 font-mono truncate">
               {activeThread ? `ID: ${activeThread.id}` : "CPU yielded / idle"}
             </div>
           </div>
 
           {/* Scheduling Policy */}
-          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <div className="lab-card p-4 sm:p-5 space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
               <span>Scheduling Policy</span>
-              <SyncIcon size={14} className="text-slate-400" />
+              <SyncIcon size={16} className="text-amber-500" />
             </div>
-            <div className="text-sm font-semibold text-slate-900 truncate">
+            <div className="text-base sm:text-lg font-bold text-slate-900 truncate">
               {snapshot.schedulingPolicy}
             </div>
-            <div className="text-[11px] text-slate-400 mt-0.5">
+            <div className="text-xs text-slate-500 font-mono">
               {snapshot.timeQuantum ? `Quantum = ${snapshot.timeQuantum} tick` : "Non-preemptive"}
             </div>
           </div>
@@ -497,26 +494,26 @@ function SimulationLabContent() {
           diagnosticReport.condition === "DEADLOCK" ||
           diagnosticReport.condition === "UNRESOLVED_BLOCKING") && (
           <div
-            className={`rounded-lg border p-4 shadow-2xs ${
+            className={`rounded-xl border p-5 shadow-xs ${
               diagnosticReport.isDeadlocked
-                ? "border-rose-200 bg-rose-50/50"
-                : "border-amber-200 bg-amber-50/50"
+                ? "border-rose-300 bg-rose-50/70"
+                : "border-amber-300 bg-amber-50/70"
             }`}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-4">
               <div
-                className={`p-2 rounded shrink-0 ${
+                className={`p-2.5 rounded-xl shrink-0 ${
                   diagnosticReport.isDeadlocked
                     ? "bg-rose-100 text-rose-700"
                     : "bg-amber-100 text-amber-700"
                 }`}
               >
-                <ShieldAlertIcon size={20} />
+                <ShieldAlertIcon size={24} />
               </div>
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+              <div className="flex-1 min-w-0 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3
-                    className={`text-xs font-bold uppercase tracking-wider ${
+                    className={`text-sm font-bold uppercase tracking-wider ${
                       diagnosticReport.isDeadlocked
                         ? "text-rose-900"
                         : "text-amber-900"
@@ -525,7 +522,7 @@ function SimulationLabContent() {
                     Concurrency Diagnostics: {diagnosticReport.condition.replace("_", " ")}
                   </h3>
                   <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded border self-start sm:self-auto ${
+                    className={`text-xs font-bold px-3 py-1 rounded-md border self-start sm:self-auto ${
                       diagnosticReport.isDeadlocked
                         ? "bg-rose-100 text-rose-800 border-rose-300"
                         : "bg-amber-100 text-amber-800 border-amber-300"
@@ -535,16 +532,16 @@ function SimulationLabContent() {
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-700 leading-relaxed">
+                <p className="text-sm text-slate-800 leading-relaxed">
                   {diagnosticReport.explanation}
                 </p>
 
                 {/* Suggested Prevention / Recovery Technique */}
-                <div className="pt-2 border-t border-slate-200/70">
-                  <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wide block mb-0.5">
+                <div className="pt-2.5 border-t border-slate-200/80">
+                  <span className="text-xs font-bold text-slate-900 uppercase tracking-wider block mb-1">
                     Recommended Prevention / Recovery Technique:
                   </span>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-sm text-slate-700 leading-relaxed">
                     {diagnosticReport.suggestedTechnique}
                   </p>
                 </div>
@@ -587,7 +584,7 @@ export default function SimulationLabPage() {
     <Suspense
       fallback={
         <DashboardLayout>
-          <div className="p-8 text-center text-xs text-slate-500">
+          <div className="p-12 text-center text-sm text-slate-500">
             Initializing simulation environment...
           </div>
         </DashboardLayout>

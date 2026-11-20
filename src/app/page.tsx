@@ -55,7 +55,7 @@ const learningModules: LearningModule[] = [
     code: "LAB 01",
     title: "Race Condition Laboratory",
     description:
-      "Explore shared data conflicts and understand how unsafe thread execution creates incorrect results.",
+      "Explore shared data conflicts and understand how unsafe thread execution creates non-deterministic lost updates.",
     concepts: ["Shared Memory", "Critical Section", "Atomic Operations"],
   },
   {
@@ -63,7 +63,7 @@ const learningModules: LearningModule[] = [
     code: "LAB 02",
     title: "Deadlock Detection",
     description:
-      "Visualize resource dependencies, circular waits and deadlock prevention.",
+      "Visualize resource allocation dependencies, circular wait conditions, and Coffman criteria verification.",
     concepts: ["Circular Wait", "Resource Graphs", "Coffman Conditions"],
   },
   {
@@ -71,7 +71,7 @@ const learningModules: LearningModule[] = [
     code: "LAB 03",
     title: "Process Synchronization",
     description:
-      "Learn critical sections, mutex locks, semaphores and controlled resource access.",
+      "Learn critical sections, binary mutex locks, counting semaphores, and producer-consumer coordination.",
     concepts: ["Mutex Locks", "Counting Semaphores", "Condition Variables"],
   },
   {
@@ -79,7 +79,7 @@ const learningModules: LearningModule[] = [
     code: "LAB 04",
     title: "Thread Monitoring",
     description:
-      "Observe thread states, execution timelines, waiting time and event logs.",
+      "Observe deterministic thread state transitions, CPU Gantt timelines, ready queue dispatch, and context switches.",
     concepts: ["State Transitions", "Gantt Timeline", "Context Switching"],
   },
 ];
@@ -114,151 +114,152 @@ const quickStartExperiments: QuickStartExperiment[] = [
 export default function Home() {
   return (
     <DashboardLayout>
-      <div className="space-y-5">
-        {/* Welcome Section */}
-        <div className="rounded border border-slate-200 bg-white p-5 shadow-2xs">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="space-y-1">
-              <h1 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight">
+      <div className="space-y-8">
+        {/* Hero Welcome Banner */}
+        <div className="lab-card p-6 sm:p-8 bg-gradient-to-r from-white via-white to-blue-50/40 border-slate-200/90 shadow-xs">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-2 max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-200/70">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+                Academic OS Simulator
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 Operating Systems Laboratory
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 max-w-2xl leading-normal">
-                Explore concurrency problems, understand operating system failures
-                and experiment with synchronization.
+              <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+                Explore concurrency problems, inspect deterministic thread state transitions, analyze resource dependency graphs, and verify synchronization protocols in real time.
               </p>
             </div>
-            <div className="shrink-0 flex items-center gap-2">
+
+            <div className="shrink-0 flex flex-wrap items-center gap-3">
               <Link
                 href="/experiments"
-                className="inline-flex items-center gap-1.5 rounded bg-white border border-slate-300 px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-2xs"
               >
                 <span>Browse Experiments</span>
               </Link>
               <Link
                 href="/simulation"
-                className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-all shadow-xs"
               >
                 <span>Launch Simulation Lab</span>
-                <ArrowRightIcon size={12} className="text-white" />
+                <ArrowRightIcon size={14} className="text-white" />
               </Link>
             </div>
           </div>
         </div>
 
-        {/* At a glance Section */}
-        <section aria-labelledby="at-a-glance-heading">
-          <div className="mb-2.5">
+        {/* At a glance Metrics Section */}
+        <section aria-labelledby="at-a-glance-heading" className="space-y-3">
+          <div className="flex items-center justify-between">
             <h2
               id="at-a-glance-heading"
-              className="text-xs font-semibold text-slate-900 uppercase tracking-wide"
+              className="text-xs font-bold uppercase tracking-wider text-slate-500"
             >
-              At a glance
+              Laboratory Telemetry & Architecture
             </h2>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               stat={summaryStats[0]}
-              icon={<LayersIcon size={16} className="text-slate-600" />}
+              icon={<LayersIcon size={20} className="text-blue-600" />}
             />
             <StatCard
               stat={summaryStats[1]}
-              icon={<SimulationLabIcon size={16} className="text-slate-600" />}
+              icon={<SimulationLabIcon size={20} className="text-emerald-600" />}
             />
             <StatCard
               stat={summaryStats[2]}
-              icon={<ThreadMonitorIcon size={16} className="text-slate-600" />}
+              icon={<ThreadMonitorIcon size={20} className="text-purple-600" />}
             />
             <StatCard
               stat={summaryStats[3]}
-              icon={<ClockIcon size={16} className="text-slate-600" />}
+              icon={<ClockIcon size={20} className="text-amber-600" />}
             />
           </div>
         </section>
 
-        {/* Main Grid: Workbench Left + Side Context Right */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Main Column */}
-          <div className="lg:col-span-8 space-y-5">
+        {/* Main Grid: Learning Modules & Quickstart on Left + Reference Sidebar on Right */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Main Left Column */}
+          <div className="lg:col-span-8 space-y-8">
             {/* Learning Modules Section */}
-            <section aria-labelledby="modules-heading">
-              <div className="mb-2.5">
+            <section aria-labelledby="modules-heading" className="space-y-4">
+              <div>
                 <h2
                   id="modules-heading"
-                  className="text-xs font-semibold text-slate-900 uppercase tracking-wide"
+                  className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight"
                 >
-                  Learning Modules
+                  Interactive Learning Modules
                 </h2>
-                <p className="text-xs text-slate-500">
-                  Interactive topics for concurrency principles, thread safety and deadlock prevention
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Structured laboratory topics for concurrency principles, thread safety, and deadlock prevention
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ModuleCard
                   module={learningModules[0]}
-                  icon={<SimulationLabIcon size={16} className="text-slate-700" />}
+                  icon={<SimulationLabIcon size={18} className="text-blue-600" />}
                 />
                 <ModuleCard
                   module={learningModules[1]}
-                  icon={<DeadlockAnalyzerIcon size={16} className="text-slate-700" />}
+                  icon={<DeadlockAnalyzerIcon size={18} className="text-rose-600" />}
                 />
                 <ModuleCard
                   module={learningModules[2]}
-                  icon={<SyncIcon size={16} className="text-slate-700" />}
+                  icon={<SyncIcon size={18} className="text-teal-600" />}
                 />
                 <ModuleCard
                   module={learningModules[3]}
-                  icon={<ThreadMonitorIcon size={16} className="text-slate-700" />}
+                  icon={<ThreadMonitorIcon size={18} className="text-purple-600" />}
                 />
               </div>
             </section>
 
             {/* Quick Start Section */}
-            <section id="quickstart" aria-labelledby="quickstart-heading">
-              <div className="mb-2.5 flex items-center justify-between">
+            <section id="quickstart" aria-labelledby="quickstart-heading" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                 <div>
                   <h2
                     id="quickstart-heading"
-                    className="text-xs font-semibold text-slate-900 uppercase tracking-wide"
+                    className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight"
                   >
-                    Quick Start Experiments
+                    Quick Start Failure Scenarios
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    Pre-configured scenarios ready for execution trace inspection
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    Deterministic scenarios ready for immediate execution trace inspection
                   </p>
                 </div>
                 <Link
                   href="/experiments"
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 self-start sm:self-auto"
                 >
                   <span>All experiments</span>
-                  <ArrowRightIcon size={12} />
+                  <ArrowRightIcon size={13} />
                 </Link>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <QuickStartCard
                   experiment={quickStartExperiments[0]}
-                  icon={<LockIcon size={14} className="text-slate-700" />}
+                  icon={<LockIcon size={16} className="text-blue-600" />}
                 />
                 <QuickStartCard
                   experiment={quickStartExperiments[1]}
-                  icon={<DeadlockAnalyzerIcon size={14} className="text-slate-700" />}
+                  icon={<DeadlockAnalyzerIcon size={16} className="text-rose-600" />}
                 />
                 <QuickStartCard
                   experiment={quickStartExperiments[2]}
-                  icon={<SyncIcon size={14} className="text-slate-700" />}
+                  icon={<SyncIcon size={16} className="text-teal-600" />}
                 />
               </div>
             </section>
           </div>
 
-          {/* Right Side Column: Thread Model Reference & Activity */}
-          <div className="lg:col-span-4 space-y-5">
-            {/* Thread State Model Reference */}
+          {/* Right Context Sidebar */}
+          <div className="lg:col-span-4 space-y-6">
             <ThreadStateReference />
-
-            {/* Recent Activity */}
             <RecentActivity />
           </div>
         </div>

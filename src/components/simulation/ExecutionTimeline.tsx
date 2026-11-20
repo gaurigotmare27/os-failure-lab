@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import type { SimulationSnapshot, ThreadState, TraceEvent } from "@/lib/simulation/types";
 
 export interface ExecutionTimelineProps {
@@ -108,8 +108,14 @@ function deriveThreadTimeline(
 export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ snapshot }) => {
   const maxTime = snapshot.logicalTime;
   const hasEvents = snapshot.eventTrace.length > 0;
+  const [viewMode, setViewMode] = useState<"thread" | "step">("thread");
 
-  // Compute timeline slices per thread
+  // Generate ticks array [0..maxTime]
+  const ticks = useMemo(() => {
+    return Array.from({ length: maxTime + 1 }, (_, i) => i);
+  }, [maxTime]);
+
+  // Derive per-thread timeline for all threads
   const timelineData = useMemo(() => {
     return snapshot.threads.map((thread) => {
       const slices = deriveThreadTimeline(
@@ -118,45 +124,33 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ snapshot }
         snapshot.eventTrace,
         thread.state
       );
-      return {
-        thread,
-        slices,
-      };
+      return { thread, slices };
     });
   }, [snapshot.threads, maxTime, snapshot.eventTrace]);
 
-  // Generate array of time ticks: [0, 1, ..., maxTime]
-  const ticks = useMemo(() => {
-    const list: number[] = [];
-    for (let i = 0; i <= maxTime; i++) {
-      list.push(i);
-    }
-    return list;
-  }, [maxTime]);
-
-  const getStateStyles = (state: ThreadState) => {
+  const getStateBadgeStyle = (state: ThreadState) => {
     switch (state) {
       case "RUNNING":
-        return "bg-emerald-500 text-white border-emerald-600 shadow-2xs";
+        return "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold";
       case "READY":
-        return "bg-blue-50 text-blue-700 border-blue-200";
+        return "bg-blue-50 text-blue-700 border-blue-200 font-semibold";
       case "BLOCKED":
-        return "bg-amber-100 text-amber-800 border-amber-300";
+        return "bg-amber-50 text-amber-900 border-amber-300 font-bold";
       case "DONE":
-        return "bg-slate-100 text-slate-500 border-slate-200";
+        return "bg-slate-100 text-slate-600 border-slate-200";
       case "NEW":
       default:
-        return "bg-slate-50 text-slate-400 border-slate-200";
+        return "bg-slate-100 text-slate-500 border-slate-200";
     }
   };
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden">
+    <div className="lab-card overflow-hidden">
       {/* Header Bar */}
-      <div className="border-b border-slate-200 bg-slate-50/75 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
-        <div className="flex items-center gap-2">
+      <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2.5">
           <svg
-            className="w-4 h-4 text-slate-600 shrink-0"
+            className="w-4 h-4 text-slate-700 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -168,35 +162,67 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ snapshot }
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">
-            Execution Timeline (Gantt Trace)
-          </h2>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Execution Timeline (Gantt Trace)
+            </h2>
+          </div>
         </div>
-        {/* Legend */}
-        <div className="flex items-center gap-3 text-[11px] text-slate-600 flex-wrap">
-          <div className="flex items-center gap-1">
-            <span className="h-2 w-3 rounded-2xs bg-emerald-500 border border-emerald-600" />
-            <span>RUNNING</span>
+
+        {/* View Toggle & State Legend */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Legend */}
+          <div className="flex items-center gap-2.5 text-xs text-slate-600 font-medium flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              RUNNING
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />
+              READY
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              BLOCKED
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-slate-400" />
+              DONE
+            </span>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2 w-3 rounded-2xs bg-blue-100 border border-blue-200" />
-            <span>READY</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2 w-3 rounded-2xs bg-amber-200 border border-amber-300" />
-            <span>BLOCKED</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2 w-3 rounded-2xs bg-slate-200 border border-slate-300" />
-            <span>DONE</span>
+
+          {/* View Mode Toggle */}
+          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("thread")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                viewMode === "thread"
+                  ? "bg-slate-800 text-white shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Thread Tracks
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("step")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                viewMode === "step"
+                  ? "bg-slate-800 text-white shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Step Grid
+            </button>
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
       {!hasEvents && maxTime === 0 ? (
-        <div className="px-4 py-10 text-center text-xs text-slate-400 italic">
-          <div className="mx-auto w-8 h-8 text-slate-300 mb-2">
+        <div className="px-5 py-10 text-center text-sm text-slate-500">
+          <div className="mx-auto w-10 h-10 text-slate-300 mb-2">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -206,84 +232,110 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ snapshot }
               />
             </svg>
           </div>
-          Execution timeline is empty. Click <strong>Step</strong> or{" "}
-          <strong>Run</strong> to advance instructions along the logical time axis.
+          Execution timeline is currently at Clock T = 0. Click <strong>Step</strong> or{" "}
+          <strong>Run</strong> to advance instructions and observe discrete time slices.
         </div>
-      ) : (
-        <div className="overflow-x-auto p-4">
-          <div className="min-w-fit space-y-3">
-            {/* Horizontal Logical Time Header Axis */}
-            <div className="flex items-center">
-              <div className="w-32 shrink-0 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Logical Clock
+      ) : viewMode === "thread" ? (
+        /* THREAD TRACKS VIEW: Responsive wrapped timeline blocks without horizontal scroll */
+        <div className="p-5 space-y-5">
+          {timelineData.map(({ thread, slices }) => (
+            <div
+              key={thread.id}
+              className="rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 space-y-3"
+            >
+              {/* Thread Row Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold bg-white text-slate-800 px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                    {thread.id}
+                  </span>
+                  <span className="font-bold text-sm text-slate-900">
+                    {thread.name}
+                  </span>
+                </div>
+                <span className="text-xs font-mono font-medium text-slate-500">
+                  {slices.length} Time Slices Recorded
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 flex-1">
-                {ticks.map((t) => (
-                  <div
-                    key={t}
-                    className={`w-28 shrink-0 text-center py-1 rounded text-[11px] font-mono border ${
-                      t === maxTime
-                        ? "bg-blue-50 text-blue-700 font-bold border-blue-300"
-                        : "bg-slate-50 text-slate-600 border-slate-200"
-                    }`}
-                  >
-                    T = {t}
-                  </div>
-                ))}
+
+              {/* Wrapped Responsive Slices (Never overflows horizontally) */}
+              <div className="flex flex-wrap gap-2">
+                {slices.map((slice) => {
+                  const isRunning = slice.state === "RUNNING";
+                  return (
+                    <div
+                      key={slice.tick}
+                      className={`min-w-[110px] sm:min-w-[125px] flex-1 max-w-[160px] rounded-lg p-2.5 border transition-all shadow-2xs flex flex-col justify-between ${getStateBadgeStyle(
+                        slice.state
+                      )}`}
+                    >
+                      <div className="flex items-center justify-between text-xs pb-1 border-b border-black/10">
+                        <span className="font-mono font-bold">T = {slice.tick}</span>
+                        {isRunning && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        )}
+                      </div>
+
+                      <div className="mt-1.5 space-y-0.5">
+                        <div className="text-xs font-bold uppercase tracking-wider">
+                          {slice.state}
+                        </div>
+                        <div className="text-[11px] font-sans truncate" title={slice.operationDescription}>
+                          {slice.operationDescription
+                            ? slice.operationDescription.replace(/^Thread '.*?' /, "")
+                            : slice.state === "READY"
+                            ? "In ready queue"
+                            : slice.state === "BLOCKED"
+                            ? "Waiting resource"
+                            : "Depleted"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-
-            {/* Thread Rows */}
-            {timelineData.map(({ thread, slices }) => (
-              <div key={thread.id} className="flex items-center">
-                {/* Thread Identifier Cell */}
-                <div className="w-32 shrink-0 pr-3">
-                  <div className="text-xs font-semibold text-slate-900 truncate">
-                    {thread.name}
-                  </div>
-                  <div className="text-[10px] font-mono text-slate-400 truncate">
-                    {thread.id}
-                  </div>
+          ))}
+        </div>
+      ) : (
+        /* STEP GRID VIEW: Discrete Clock Ticks Grid */
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {ticks.map((t) => (
+              <div
+                key={t}
+                className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 shadow-2xs"
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                  <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    Tick T = {t}
+                  </span>
+                  {t === maxTime && (
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      Latest
+                    </span>
+                  )}
                 </div>
 
-                {/* Horizontal Timeline Track */}
-                <div className="flex items-center gap-1.5 flex-1">
-                  {slices.map((slice) => {
-                    const isRunning = slice.state === "RUNNING";
+                <div className="space-y-1.5 text-xs">
+                  {timelineData.map(({ thread, slices }) => {
+                    const slice = slices[t];
+                    if (!slice) return null;
                     return (
                       <div
-                        key={slice.tick}
-                        title={`T=${slice.tick} | ${thread.name} [${slice.state}]${
-                          slice.operationDescription
-                            ? `\nOperation: ${slice.operationDescription}`
-                            : ""
-                        }`}
-                        className={`w-28 shrink-0 h-14 rounded p-1.5 border flex flex-col justify-between transition-all ${getStateStyles(
-                          slice.state
-                        )}`}
+                        key={thread.id}
+                        className="flex items-center justify-between text-xs p-1 rounded bg-slate-50/60"
                       >
-                        {/* Upper tag: State label */}
-                        <div className="flex items-center justify-between text-[10px] font-bold tracking-tight">
-                          <span>{slice.state}</span>
-                          {isRunning && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                          )}
-                        </div>
-
-                        {/* Lower tag: Operation summary or state info */}
-                        <div className="text-[10px] truncate leading-tight">
-                          {slice.operationDescription ? (
-                            <span className="truncate font-sans font-medium" title={slice.operationDescription}>
-                              {slice.operationDescription.replace(/^Thread '.*?' /, "")}
-                            </span>
-                          ) : slice.state === "READY" ? (
-                            <span className="text-[9px] text-blue-600 italic">In ready queue</span>
-                          ) : slice.state === "BLOCKED" ? (
-                            <span className="text-[9px] text-amber-800 italic">Waiting</span>
-                          ) : slice.state === "DONE" ? (
-                            <span className="text-[9px] text-slate-400 italic">Halted</span>
-                          ) : null}
-                        </div>
+                        <span className="font-medium text-slate-800 truncate mr-1">
+                          {thread.name}
+                        </span>
+                        <span
+                          className={`font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border ${getStateBadgeStyle(
+                            slice.state
+                          )}`}
+                        >
+                          {slice.state}
+                        </span>
                       </div>
                     );
                   })}

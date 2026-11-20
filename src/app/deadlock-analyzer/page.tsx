@@ -51,31 +51,32 @@ export default function DeadlockAnalyzerPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Breadcrumb & Header */}
-        <div className="border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+        <div className="border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-2">
             <Link href="/" className="hover:text-slate-800 transition-colors">
               Overview
             </Link>
             <span>/</span>
-            <span className="font-medium text-slate-800">Deadlock Analyzer</span>
+            <span className="font-semibold text-slate-800">Deadlock Analyzer</span>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                 Deadlock Analyzer & Graph Explorer
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-sm sm:text-base text-slate-600 mt-1 max-w-3xl">
                 Inspect mutual exclusion contention, construct dynamic Wait-For Graphs, and verify Coffman conditions in real time.
               </p>
             </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
               <Link
                 href="/simulation?scenario=scenario-two-thread-deadlock"
-                className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-xs"
               >
-                <PlayCircleIcon size={14} className="text-white" />
+                <PlayCircleIcon size={16} className="text-white" />
                 <span>Open in Simulation Lab</span>
               </Link>
             </div>
@@ -83,45 +84,47 @@ export default function DeadlockAnalyzerPage() {
         </div>
 
         {/* Controls Bar */}
-        <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="lab-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={handleStep}
               disabled={snapshot.status === "DEADLOCKED"}
-              className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors border shadow-2xs ${
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all border shadow-2xs ${
                 snapshot.status === "DEADLOCKED"
                   ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed"
-                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
               }`}
             >
-              <StepForwardIcon size={12} className={snapshot.status === "DEADLOCKED" ? "text-slate-300" : "text-slate-700"} />
+              <StepForwardIcon size={14} className={snapshot.status === "DEADLOCKED" ? "text-slate-300" : "text-slate-700"} />
               <span>Step Instruction</span>
             </button>
+
             <button
               type="button"
               onClick={handleFastForwardToDeadlock}
-              className="inline-flex items-center gap-1.5 rounded bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors shadow-2xs"
+              className="inline-flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 px-4 py-2 text-xs sm:text-sm font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all shadow-2xs"
             >
               <span>Jump to Deadlock</span>
             </button>
+
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-2xs"
             >
-              <RotateCcwIcon size={12} className="text-slate-500" />
+              <RotateCcwIcon size={14} className="text-slate-600" />
               <span>Reset</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="text-slate-400">Logical Clock:</span>
-            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+          <div className="flex items-center gap-3 text-xs sm:text-sm font-mono">
+            <span className="text-slate-500 font-medium">Logical Clock:</span>
+            <span className="font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
               T = {snapshot.logicalTime}
             </span>
             <span
-              className={`px-2 py-0.5 rounded font-bold border ${
+              className={`px-2.5 py-1 rounded-md font-bold border ${
                 snapshot.status === "DEADLOCKED"
                   ? "bg-rose-100 text-rose-800 border-rose-300"
                   : "bg-slate-100 text-slate-700 border-slate-200"
@@ -134,19 +137,19 @@ export default function DeadlockAnalyzerPage() {
 
         {/* Deadlock Alert Banner */}
         {diagnostics.isDeadlocked && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50/70 p-4 shadow-2xs flex items-start gap-3">
-            <div className="p-2 rounded bg-rose-100 text-rose-700 shrink-0">
-              <ShieldAlertIcon size={20} />
+          <div className="rounded-xl border border-rose-300 bg-rose-50/80 p-5 shadow-xs flex items-start gap-4">
+            <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700 shrink-0">
+              <ShieldAlertIcon size={24} />
             </div>
-            <div className="space-y-1">
-              <div className="text-xs font-bold uppercase tracking-wider text-rose-900">
+            <div className="space-y-1.5 flex-1">
+              <div className="text-sm font-bold uppercase tracking-wider text-rose-900">
                 Formal Deadlock Identified: {diagnostics.summary}
               </div>
-              <p className="text-xs text-rose-800 leading-relaxed">
+              <p className="text-sm text-rose-800 leading-relaxed">
                 {diagnostics.explanation}
               </p>
-              <div className="text-[11px] text-slate-700 pt-1 font-sans">
-                <strong>Mitigation Strategy:</strong> {diagnostics.suggestedTechnique}
+              <div className="text-xs text-slate-800 pt-2 border-t border-rose-200/80 font-sans">
+                <strong className="font-bold text-rose-900">Mitigation Strategy:</strong> {diagnostics.suggestedTechnique}
               </div>
             </div>
           </div>
@@ -157,41 +160,55 @@ export default function DeadlockAnalyzerPage() {
           <WaitForGraph snapshot={snapshot} />
         </section>
 
-        {/* Mutex Resources & Thread Contention State */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Mutex Resources & Coffman Conditions Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ResourceMonitor snapshot={snapshot} />
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs space-y-3">
-            <div className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-              <CheckCircleIcon size={14} className="text-blue-600" />
+
+          <div className="lab-card p-5 space-y-4">
+            <div className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100">
+              <CheckCircleIcon size={16} className="text-blue-600" />
               <span>Coffman Conditions Checklist</span>
             </div>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100">
-                <span>1. Mutual Exclusion (Non-shareable locks)</span>
-                <span className="font-mono text-emerald-700 font-bold">SATISFIED</span>
+
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
+                <span className="font-medium text-slate-800">1. Mutual Exclusion (Non-shareable locks)</span>
+                <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  SATISFIED
+                </span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100">
-                <span>2. Hold and Wait (Holding while requesting)</span>
-                <span className="font-mono text-emerald-700 font-bold">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
+                <span className="font-medium text-slate-800">2. Hold and Wait (Holding while requesting)</span>
+                <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                   {snapshot.threads.some((t) => t.heldLocks.length > 0)
                     ? "SATISFIED"
                     : "PENDING"}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100">
-                <span>3. No Preemption (Locks held until release)</span>
-                <span className="font-mono text-emerald-700 font-bold">SATISFIED</span>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
+                <span className="font-medium text-slate-800">3. No Preemption (Locks held until voluntary release)</span>
+                <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  SATISFIED
+                </span>
               </div>
               <div
-                className={`flex items-center justify-between p-2 rounded border ${
+                className={`flex items-center justify-between p-3 rounded-lg border ${
                   diagnostics.isDeadlocked
-                    ? "bg-rose-50 border-rose-200 text-rose-900 font-bold"
-                    : "bg-slate-50 border-slate-100 text-slate-600"
+                    ? "bg-rose-50 border-rose-300 text-rose-900 font-bold"
+                    : "bg-slate-50 border-slate-200/80 text-slate-600"
                 }`}
               >
-                <span>4. Circular Wait (Closed loop dependency)</span>
-                <span className="font-mono">
-                  {diagnostics.isDeadlocked ? "DETECTED (CYCLE)" : "NONE"}
+                <span className="font-medium">4. Circular Wait (Closed loop dependency)</span>
+                <span className="font-mono font-bold">
+                  {diagnostics.isDeadlocked ? (
+                    <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded border border-rose-300">
+                      DETECTED (CYCLE)
+                    </span>
+                  ) : (
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                      NONE
+                    </span>
+                  )}
                 </span>
               </div>
             </div>
